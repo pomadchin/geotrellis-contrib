@@ -15,7 +15,7 @@ import org.scalatest._
 import org.apache.spark._
 
 class RasterSourceRDDSpec extends FunSpec with TestEnvironment {
-  val uri = "file:///tmp/aspect-tiled.tif"
+  val uri = "vlm/src/test/resources/img/aspect-tiled.tif"
   val rasterSource = new GeoTiffRasterSource(uri)
 
   val targetCRS = CRS.fromEpsgCode(3857)
