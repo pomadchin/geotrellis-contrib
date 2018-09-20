@@ -59,19 +59,36 @@ object RasterSourceRDD {
 
     val sourcesRDD: RDD[(RasterSource, Array[RasterExtent])] =
       sc.parallelize(sources).flatMap { source =>
+        println(s"$extent.intersection(${source.extent}): ${extent.intersection(source.extent)}")
         val rasterExtents: Traversable[RasterExtent] =
           extent.intersection(source.extent) match {
             case Some(intersection) =>
+              println(s"intersection: ${intersection}")
+              println(s"layout: ${layout}")
+              println(s"layout.tileLayout: ${layout.tileLayout}")
               val keys = mapTransform.keysForGeometry(intersection.toPolygon)
 
+
+
               keys.map { key =>
-                RasterExtent(
+                val ext = mapTransform(key)
+                println(s"mapTransform($key): ${ext}")
+                val bounds = mapTransform(ext)
+                println(s"bounds: $bounds")
+                println(s"bounds.width -> bounds.height: ${bounds.width -> bounds.height}")
+
+                val re = RasterExtent(
                   mapTransform(key),
                   layout.cellwidth,
                   layout.cellheight,
                   layout.tileCols,
                   layout.tileRows
                 )
+
+                val zz = re.gridBoundsFor(ext, clamp = false)
+                println(s"zz: $zz")
+
+                re
               }
             case None => Seq.empty[RasterExtent]
           }

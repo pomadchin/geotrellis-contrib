@@ -3,9 +3,9 @@ package geotrellis.contrib.vlm.gdal
 import geotrellis.contrib.vlm._
 import geotrellis.proj4._
 import geotrellis.raster._
-import geotrellis.raster.resample.{ResampleMethod, NearestNeighbor}
+import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
+import geotrellis.spark.tiling.{LayoutDefinition, ZoomedLayoutScheme}
 import geotrellis.vector._
-
 import org.gdal.osr.SpatialReference
 
 
@@ -57,8 +57,9 @@ case class GDALRasterSource(uri: String) extends RasterSource {
 
   def read(windows: Traversable[RasterExtent]): Iterator[Raster[MultibandTile]] = {
     val bounds: Map[GridBounds, RasterExtent] =
-      windows.map { case targetRasterExtent =>
+      windows.map { targetRasterExtent =>
         val existingRegion = rasterExtent.gridBoundsFor(targetRasterExtent.extent, clamp = true)
+        println(s"existingRegion.width -> existingRegion.height: ${existingRegion.width -> existingRegion.height}")
 
         (existingRegion, targetRasterExtent)
       }.toMap
@@ -85,6 +86,13 @@ case class GDALRasterSource(uri: String) extends RasterSource {
     }.toIterator
   }
 
-  def withCRS(targetCRS: CRS, resampleMethod: ResampleMethod = NearestNeighbor): WarpGDALRasterSource =
-    WarpGDALRasterSource(uri, targetCRS, resampleMethod)
+  def withCRS(targetCRS: CRS, resampleMethod: ResampleMethod = NearestNeighbor): WarpGDALRasterSourceV2 = {
+    val targetCRS = CRS.fromEpsgCode(3857)
+    val scheme = ZoomedLayoutScheme(targetCRS)
+    val layout = scheme.levelForZoom(13).layout
+    WarpGDALRasterSourceV2(uri, targetCRS, layout, resampleMethod)
+  }
+
+  def withCRS2(targetCRS: CRS, layout: LayoutDefinition, resampleMethod: ResampleMethod = NearestNeighbor): WarpGDALRasterSourceV2 =
+    WarpGDALRasterSourceV2(uri, targetCRS, layout, resampleMethod)
 }
