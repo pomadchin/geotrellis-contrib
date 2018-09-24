@@ -70,25 +70,27 @@ object RasterSourceRDD {
 
 
 
-              keys.map { key =>
-                val ext = mapTransform(key)
-                println(s"mapTransform($key): ${ext}")
-                val bounds = mapTransform(ext)
-                println(s"bounds: $bounds")
-                println(s"bounds.width -> bounds.height: ${bounds.width -> bounds.height}")
+              keys.flatMap { key =>
+                // if (key != SpatialKey(2303, 3222)) None else {
+                  val ext = mapTransform(key)
+                  println(s"mapTransform($key): ${ext}")
+                  val bounds = mapTransform(ext)
+                  println(s"bounds: $bounds")
+                  println(s"bounds.width -> bounds.height: ${bounds.width -> bounds.height}")
 
-                val re = RasterExtent(
-                  mapTransform(key),
-                  layout.cellwidth,
-                  layout.cellheight,
-                  layout.tileCols,
-                  layout.tileRows
-                )
+                  val re = RasterExtent(
+                    mapTransform(key),
+                    layout.cellwidth,
+                    layout.cellheight,
+                    layout.tileCols,
+                    layout.tileRows
+                  )
 
-                val zz = re.gridBoundsFor(ext, clamp = false)
-                println(s"zz: $zz")
+                  val zz = re.gridBoundsFor(ext, clamp = false)
+                  println(s"zz: $zz")
 
-                re
+                  Some(re)
+                // }
               }
             case None => Seq.empty[RasterExtent]
           }

@@ -131,7 +131,7 @@ class RasterSourceRDDSpec extends FunSpec with TestEnvironment {
             println(s"expected.dimensions: ${expected.dimensions}")
             expected.band(0).renderPng().write(s"/Users/daunnc/Downloads/expected-${key}.png")
             actual.band(0).renderPng().write(s"/Users/daunnc/Downloads/actual-${key}.png")
-            // assertEqual(expected, actual)
+            if(key == SpatialKey(2305,3223)) assertEqual(expected, actual)
           case None => println(s"$key does not exist in the rasterSourceRDD")
         }
       }

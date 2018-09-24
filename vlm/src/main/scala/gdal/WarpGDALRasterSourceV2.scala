@@ -41,6 +41,7 @@ case class WarpGDALRasterSourceV2(
         "-of", "VRT",
         "-s_srs", baseSpatialReference.ExportToProj4,
         "-t_srs", targetSpatialReference.ExportToProj4,
+        // "19.2", "19.2" // 19.120000023123123, 19.120000023123123
         "-tr", "19.2", "19.2", // layout.cellwidth.toString, layout.cellheight.toString,
         "-r", s"${GDAL.deriveResampleMethodString(resampleMethod)}",
         "-et", s"$errorThreshold"
@@ -125,6 +126,8 @@ case class WarpGDALRasterSourceV2(
 
   private lazy val reader = GDALReader(vrt)
 
+  // Extents or GridBounds
+  // ??? RasterExtent - CellSize
   def read(windows: Traversable[RasterExtent]): Iterator[Raster[MultibandTile]] = {
     val bounds: Map[GridBounds, RasterExtent] =
       windows.map { targetRasterExtent =>
@@ -153,20 +156,23 @@ case class WarpGDALRasterSourceV2(
           rowMin
         )
 
-        // val existingRegion =
-        GridBounds(
-          colMin.head.toInt,
-          rowMin.head.toInt,
-          colMax.head.toInt,
-          rowMax.head.toInt
-        )
+        val existingRegion =
+          GridBounds(
+            colMin.head.toInt,
+            rowMin.head.toInt,
+            colMax.head.toInt,
+            rowMax.head.toInt
+          )
 
-        val existingRegion = rasterExtent.gridBoundsFor(targetRasterExtent.extent, clamp = true)
+        val existingRegionGT = rasterExtent.gridBoundsFor(targetRasterExtent.extent, clamp = true)
+        val existingRegionGTNC = rasterExtent.gridBoundsFor(targetRasterExtent.extent, clamp = false)
         println(s"existingRegion.width -> existingRegion.height: ${existingRegion.width -> existingRegion.height}")
+        println(s"existingRegionGT.width -> existingRegionGT.height: ${existingRegionGT.width -> existingRegionGT.height}")
         println(s"existingRegion: ${existingRegion}")
-        // println(s"existingRegionGT: ${existingRegionGT}")
+        println(s"existingRegionGT: ${existingRegionGT}")
+        println(s"existingRegionGTNC: ${existingRegionGTNC}")
 
-        (existingRegion, targetRasterExtent)
+        (existingRegionGT, targetRasterExtent)
       }.toMap
 
     bounds.map { case (gb, re) =>
@@ -174,7 +180,7 @@ case class WarpGDALRasterSourceV2(
 
       val (gridBounds, tile) =
         if (initialTile.cols != re.cols || initialTile.rows != re.rows) {
-          val targetBounds = rasterExtent.gridBoundsFor(extent.intersection(re.extent).get, clamp = false)
+          val targetBounds = rasterExtent.gridBoundsFor(re.extent, clamp = false)
           println(s"rasterExtent.cellSize: ${rasterExtent.cellSize}")
           println(s"gb: $gb")
           println(s"targetBounds: $targetBounds")
@@ -186,7 +192,7 @@ case class WarpGDALRasterSourceV2(
 
             println(s"band.cols -> band.rows: ${band.cols -> band.rows}")
             println(s"protoTile.update(${targetBounds.colMin - gb.colMin}, ${targetBounds.rowMin - gb.rowMin}, $band)")
-            protoTile.update(targetBounds.colMin - gb.colMin, targetBounds.rowMin - gb.rowMin, band)
+            protoTile.update(- targetBounds.colMin + gb.colMin, - targetBounds.rowMin + gb.rowMin, band)
             protoTile
           }
 
