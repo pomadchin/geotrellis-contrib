@@ -94,4 +94,6 @@ object Dependencies {
   val circeParser         = "io.circe"                   %% "circe-parser"             % Version.circe
 
   val gdal                = "org.gdal"                    % "gdal"                     % Version.gdal
+  
+  val scalaArm =          "com.jsuereth"                 %% "scala-arm"                % "2.0"
 }

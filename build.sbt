@@ -66,6 +66,7 @@ lazy val vlm = project
       fs2Io,
       gdal,
       scalactic,
+      scalaArm,
       sparkCore % Provided,
       sparkSQL % Test,
       geotrellisSparkTestKit % Test,
