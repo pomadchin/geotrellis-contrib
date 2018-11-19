@@ -142,7 +142,10 @@ class RasterSourceRDDSpec extends FunSpec with TestEnvironment with BetterRaster
       val reprojectedSourceRDD: MultibandTileLayerRDD[SpatialKey] =
         RasterSourceRDD(rasterSource.reprojectToGrid(targetCRS, layout), layout)
 
-      assertRDDLayersEqual(reprojectedExpectedRDD, reprojectedSourceRDD)
+      geotrellis.raster.io.geotiff.GeoTiff(reprojectedExpectedRDD.stitch, targetCRS).write("/tmp/expected.tif")
+      geotrellis.raster.io.geotiff.GeoTiff(reprojectedSourceRDD.stitch, targetCRS).write("/tmp/actual.tif")
+
+      assertRDDLayersEqual(reprojectedExpectedRDD, reprojectedSourceRDD, true)
     }
 
     describe("GDALRasterSource") {
