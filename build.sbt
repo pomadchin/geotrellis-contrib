@@ -29,7 +29,7 @@ lazy val commonSettings = Seq(
   resolvers ++= Seq(
     "geosolutions" at "http://maven.geo-solutions.it/",
     "locationtech-releases" at "https://repo.locationtech.org/content/groups/releases",
-    "locationtech-snapshots" at "https://repo.locationtech.org/content/groups/snapshots",
+    // "locationtech-snapshots" at "https://repo.locationtech.org/content/groups/snapshots",
     "osgeo" at "http://download.osgeo.org/webdav/geotools/"
   ),
   headerLicense := Some(HeaderLicense.ALv2("2018", "Azavea")),
