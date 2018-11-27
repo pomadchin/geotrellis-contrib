@@ -32,7 +32,7 @@ package object vlm {
     val javaURI = new URI(uri)
     val noQueryParams = URLEncodedUtils.parse(uri, Charset.forName("UTF-8")).isEmpty
 
-    val rr =  javaURI.getScheme match {
+    val rr = javaURI.getScheme match {
       case null =>
         FileRangeReader(Paths.get(javaURI.toString).toFile)      
       

@@ -29,7 +29,7 @@ class GeoTiffRasterSource(
   val uri: String
 ) extends RasterSource {
 
-  @transient private lazy val tiff: MultibandGeoTiff =
+  @transient lazy val tiff: MultibandGeoTiff =
     GeoTiffReader.readMultiband(getByteReader(uri), streaming = true)
 
   lazy val rasterExtent = tiff.rasterExtent
