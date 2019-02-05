@@ -114,6 +114,9 @@ trait GDALBaseRasterSource extends RasterSource {
   def resample(resampleGrid: ResampleGrid, method: ResampleMethod, strategy: OverviewStrategy): RasterSource =
     GDALResampleRasterSource(uri, resampleGrid, method, strategy, options)
 
+  def convert(cellType: CellType, strategy: OverviewStrategy): RasterSource =
+    GDALConvertedRasterSource(uri, cellType, strategy, options)
+
   def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
     val bounds = rasterExtent.gridBoundsFor(extent, clamp = false)
     read(bounds, bands)

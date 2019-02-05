@@ -65,4 +65,7 @@ case class GDALResampleRasterSource(
 
   override def resample(resampleGrid: ResampleGrid, method: ResampleMethod, strategy: OverviewStrategy): RasterSource =
     GDALResampleRasterSource(uri, resampleGrid, method, strategy, options, warpList)
+
+  override def convert(cellType: CellType, strategy: OverviewStrategy): RasterSource =
+    GDALConvertedRasterSource(uri, cellType, strategy, options, warpList)
 }

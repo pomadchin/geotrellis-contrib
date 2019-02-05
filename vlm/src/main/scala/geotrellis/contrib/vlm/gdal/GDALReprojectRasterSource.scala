@@ -18,6 +18,7 @@ package geotrellis.contrib.vlm.gdal
 
 import geotrellis.gdal._
 import geotrellis.proj4._
+import geotrellis.raster.CellType
 import geotrellis.raster.reproject.Reproject
 import geotrellis.contrib.vlm.{RasterSource, ResampleGrid}
 import geotrellis.raster.resample.ResampleMethod
@@ -73,4 +74,7 @@ case class GDALReprojectRasterSource(
 
   override def resample(resampleGrid: ResampleGrid, method: ResampleMethod, strategy: OverviewStrategy): RasterSource =
     GDALResampleRasterSource(uri, resampleGrid, method, strategy, options, warpList)
+
+  override def convert(cellType: CellType, strategy: OverviewStrategy): RasterSource =
+    GDALConvertedRasterSource(uri, cellType, strategy, options, warpList)
 }
