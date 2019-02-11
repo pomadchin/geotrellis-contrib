@@ -50,22 +50,22 @@ trait GDALBaseRasterSource extends RasterSource {
   private[gdal] def getParentDatasets: Set[Dataset] = parentDatasets.toSet
 
   /** options to override some values on transformation steps, should be used carefully as these params can change the behaviour significantly */
-  val options: GDALWarpOptions
+  private[gdal] val options: GDALWarpOptions
   /** options from previous transformation steps */
-  val baseWarpList: List[GDALWarpOptions]
+  private[gdal] val baseWarpList: List[GDALWarpOptions]
   /** current transformation options */
-  val warpOptions: GDALWarpOptions
+  private[gdal] val warpOptions: GDALWarpOptions
   /** the list of transformation options including the current one */
-  lazy val warpList: List[GDALWarpOptions] = baseWarpList :+ warpOptions
+  lazy private[gdal] val warpList: List[GDALWarpOptions] = baseWarpList :+ warpOptions
 
   // generate a vrt before the current options application
-  @transient lazy val fromBaseWarpList: Dataset = {
+  @transient private[vlm] lazy val fromBaseWarpList: Dataset = {
     val (ds, history) = GDAL.fromGDALWarpOptionsH(uri, baseWarpList)
     parentDatasets ++= history
     ds
   }
   // current dataset
-  @transient lazy val dataset: Dataset = {
+  @transient private[vlm] lazy val dataset: Dataset = {
     val (ds, history) = GDAL.fromGDALWarpOptionsH(uri, warpList, fromBaseWarpList)
     parentDatasets ++= history
     ds
