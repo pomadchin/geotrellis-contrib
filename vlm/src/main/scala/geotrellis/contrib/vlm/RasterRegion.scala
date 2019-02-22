@@ -30,6 +30,9 @@ case class RasterRegion(
   source: RasterSource,
   bounds: GridBounds
 ) extends CellGrid with Serializable {
+  println(s"RasterRegion:: bounds: $bounds")
+  println(s"RasterRegion:: source.gridBounds: ${source.gridBounds}")
+
   require(bounds.intersects(source.gridBounds), s"The given bounds: $bounds must intersect the given source: $source")
   @transient lazy val raster: Option[Raster[MultibandTile]] =
     for {
