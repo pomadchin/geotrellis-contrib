@@ -31,6 +31,9 @@ class LayoutTileSource(val source: RasterSource, val layout: LayoutDefinition) e
 
   /** Generate RasterRegion for this key */
   def rasterRegionForKey(key: SpatialKey): RasterRegion = {
+    val keyExtent = key.extent(layout)
+    require(source.extent.intersects(keyExtent), source.extent.intersection(keyExtent))
+
     val sourcePixelBounds = source.rasterExtent.gridBoundsFor(key.extent(layout), clamp = false)
     RasterRegion(source, sourcePixelBounds)
   }
