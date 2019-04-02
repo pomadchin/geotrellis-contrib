@@ -24,13 +24,13 @@ import geotrellis.raster.reproject.ReprojectRasterExtent
 import geotrellis.spark.io.http.util.HttpRangeReader
 import geotrellis.spark.io.s3.util.S3RangeReader
 import geotrellis.spark.io.s3.AmazonS3Client
-
 import org.apache.http.client.utils.URLEncodedUtils
 import com.amazonaws.services.s3.{AmazonS3ClientBuilder, AmazonS3URI}
-
 import java.nio.file.Paths
 import java.net.{URI, URL}
 import java.nio.charset.Charset
+
+import com.amazonaws.regions.{Region, Regions}
 
 package object vlm {
   private[vlm] def getByteReader(uri: String): StreamingByteReader = {
@@ -53,14 +53,17 @@ package object vlm {
       case "s3" =>
         val s3Uri = new AmazonS3URI(java.net.URLDecoder.decode(uri, "UTF-8"))
         val s3Client = if (Config.s3.allowGlobalRead) {
-          new AmazonS3Client(
-            AmazonS3ClientBuilder
-              .standard()
-              .withForceGlobalBucketAccessEnabled(true)
-              .build()
-          )
+          val builder = AmazonS3ClientBuilder
+            .standard()
+            .withForceGlobalBucketAccessEnabled(true)
+
+          val client = Config.s3.region.fold(builder) { region => builder.setRegion(region); builder }.build
+
+          new AmazonS3Client(client)
         } else {
-          new AmazonS3Client(AmazonS3ClientBuilder.defaultClient())
+          val builder = AmazonS3ClientBuilder.standard()
+          val client = Config.s3.region.fold(builder) { region => builder.setRegion(region); builder }.build
+          new AmazonS3Client(client)
         }
         S3RangeReader(s3Uri.getBucket, s3Uri.getKey, s3Client)
 
