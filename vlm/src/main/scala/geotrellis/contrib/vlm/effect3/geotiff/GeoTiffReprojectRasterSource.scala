@@ -33,16 +33,16 @@ import cats.syntax.apply._
 import cats.syntax.functor._
 import cats.instances.list._
 
-case class GeoTiffReprojectRasterSource[F[_]](
+case class GeoTiffReprojectRasterSource[F[_]: GeoTiffMultibandReader: UnsafeLift](
   uri: String,
   targetCRS: CRS,
   reprojectOptions: Reproject.Options = Reproject.Options.DEFAULT,
   strategy: OverviewStrategy = AutoHigherResolution,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-)(implicit val F: Monad[F], implicit val reader: GeoTiffMultibandReader[F]) extends RasterSourceF[F] {
+)(implicit val F: Monad[F]) extends RasterSourceF[F] {
   def resampleMethod: Option[ResampleMethod] = Some(reprojectOptions.method)
 
-  @transient lazy val tiffF: F[MultibandGeoTiff] = reader.read(uri)
+  @transient lazy val tiffF: F[MultibandGeoTiff] = GeoTiffMultibandReader[F].read(uri)
 
   lazy val crs: F[CRS] = F.pure(targetCRS)
   protected lazy val baseCRS: F[CRS] = tiffF.map(_.crs)
@@ -99,37 +99,43 @@ case class GeoTiffReprojectRasterSource[F[_]](
 
   override def readBounds(bounds: Traversable[GridBounds[Long]], bands: Seq[Int]): F[Iterator[Raster[MultibandTile]]] =
     (closestTiffOverview, gridBounds, gridExtent, backTransform, baseCRS, crs).mapN { (closestTiffOverview, gridBounds, gridExtent, backTransform, baseCRS, crs) =>
-      RasterSourceF.synchronized {
-        val geoTiffTile = closestTiffOverview.asInstanceOf[GeoTiffMultibandTile]
-        val intersectingWindows = { for {
-          queryPixelBounds <- bounds
-          targetPixelBounds <- queryPixelBounds.intersection(gridBounds)
-        } yield {
-          val targetRasterExtent = RasterExtent(
-            extent = gridExtent.extentFor(targetPixelBounds, clamp = true),
-            cols = targetPixelBounds.width.toInt,
-            rows = targetPixelBounds.height.toInt)
-          val sourceExtent = targetRasterExtent.extent.reprojectAsPolygon(backTransform, 0.001).envelope
-          val sourcePixelBounds = closestTiffOverview.rasterExtent.gridBoundsFor(sourceExtent, clamp = true)
-          (sourcePixelBounds, targetRasterExtent)
-        }}.toMap
+      UnsafeLift[F].apply {
+        RasterSourceF.synchronized {
+          val geoTiffTile = closestTiffOverview.asInstanceOf[GeoTiffMultibandTile]
+          val intersectingWindows = {
+            for {
+              queryPixelBounds <- bounds
+              targetPixelBounds <- queryPixelBounds.intersection(gridBounds)
+            } yield {
+              val targetRasterExtent = RasterExtent(
+                extent = gridExtent.extentFor(targetPixelBounds, clamp = true),
+                cols = targetPixelBounds.width.toInt,
+                rows = targetPixelBounds.height.toInt)
+              val sourceExtent = targetRasterExtent.extent.reprojectAsPolygon(backTransform, 0.001).envelope
+              val sourcePixelBounds = closestTiffOverview.rasterExtent.gridBoundsFor(sourceExtent, clamp = true)
+              (sourcePixelBounds, targetRasterExtent)
+            }
+          }.toMap
 
-        geoTiffTile.crop(intersectingWindows.keys.toSeq, bands.toArray).map { case (sourcePixelBounds, tile) =>
-          val targetRasterExtent = intersectingWindows(sourcePixelBounds)
-          val sourceRaster = Raster(tile, closestTiffOverview.rasterExtent.extentFor(sourcePixelBounds, clamp = true))
-          val rr = implicitly[RasterRegionReproject[MultibandTile]]
-          rr.regionReproject(
-            sourceRaster,
-            baseCRS,
-            crs,
-            targetRasterExtent,
-            targetRasterExtent.extent.toPolygon,
-            reprojectOptions.method,
-            reprojectOptions.errorThreshold
-          )
-        }.map { convertRaster }
+          geoTiffTile.crop(intersectingWindows.keys.toSeq, bands.toArray).map { case (sourcePixelBounds, tile) =>
+            val targetRasterExtent = intersectingWindows(sourcePixelBounds)
+            val sourceRaster = Raster(tile, closestTiffOverview.rasterExtent.extentFor(sourcePixelBounds, clamp = true))
+            val rr = implicitly[RasterRegionReproject[MultibandTile]]
+            rr.regionReproject(
+              sourceRaster,
+              baseCRS,
+              crs,
+              targetRasterExtent,
+              targetRasterExtent.extent.toPolygon,
+              reprojectOptions.method,
+              reprojectOptions.errorThreshold
+            )
+          }.map {
+            convertRaster
+          }
+        }
       }
-    }
+    }.flatten
 
   def reproject(targetCRS: CRS, reprojectOptions: Reproject.Options, strategy: OverviewStrategy): GeoTiffReprojectRasterSource[F] =
     GeoTiffReprojectRasterSource(uri, targetCRS, reprojectOptions, strategy, targetCellType)

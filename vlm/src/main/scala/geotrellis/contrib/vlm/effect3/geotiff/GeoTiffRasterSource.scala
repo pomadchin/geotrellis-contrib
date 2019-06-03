@@ -33,13 +33,13 @@ import cats.syntax.apply._
 import cats.syntax.functor._
 import cats.instances.list._
 
-case class GeoTiffRasterSource[F[_]](
+case class GeoTiffRasterSource[F[_]: GeoTiffMultibandReader: UnsafeLift](
   uri: String,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-)(implicit val F: Monad[F], implicit val reader: GeoTiffMultibandReader[F]) extends RasterSourceF[F] {
+)(implicit val F: Monad[F]) extends RasterSourceF[F] {
   def resampleMethod: Option[ResampleMethod] = None
 
-  @transient lazy val tiffF: F[MultibandGeoTiff] = reader.read(uri)
+  @transient lazy val tiffF: F[MultibandGeoTiff] = GeoTiffMultibandReader[F].read(uri)
 
   lazy val gridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
   lazy val resolutions: F[List[GridExtent[Long]]] = tiffF.map { tiff =>
@@ -64,16 +64,18 @@ case class GeoTiffRasterSource[F[_]](
       RasterSourceF.synchronized {
         val bounds = gridExtent.gridBoundsFor(extent, clamp = false).toGridType[Int]
         val geoTiffTile = tiff.tile.asInstanceOf[GeoTiffMultibandTile]
-        // TODO: this line throws, how to handle it?
-        val it = geoTiffTile.crop(List(bounds), bands.toArray).map { case (gb, tile) =>
-          // TODO: shouldn't GridExtent give me Extent for types other than N ?
-          Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = false))
-        }
+        UnsafeLift[F].apply {
+          // TODO: this line throws, how to handle it?
+          val it = geoTiffTile.crop(List(bounds), bands.toArray).map { case (gb, tile) =>
+            // TODO: shouldn't GridExtent give me Extent for types other than N ?
+            Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = false))
+          }
 
-        if (it.isEmpty) throw new Exception("The requested extent has no intersections with the actual RasterSource")
-        else convertRaster(it.next)
+          if (it.isEmpty) throw new Exception("The requested extent has no intersections with the actual RasterSource")
+          else convertRaster(it.next)
+        }
       }
-    }
+    }.flatten
 
   def read(bounds: GridBounds[Long], bands: Seq[Int]): F[Raster[MultibandTile]] =
     readBounds(List(bounds), bands).map(_.next)
@@ -89,11 +91,13 @@ case class GeoTiffRasterSource[F[_]](
       val intersectingBounds: Seq[GridBounds[Int]] =
         bounds.flatMap(_.intersection(gridBounds)).toSeq.map(b => b.toGridType[Int])
 
-      RasterSourceF.synchronized {
-        geoTiffTile.crop(intersectingBounds, bands.toArray).map { case (gb, tile) =>
-          convertRaster(Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = true)))
+      UnsafeLift[F].apply {
+        RasterSourceF.synchronized {
+          geoTiffTile.crop(intersectingBounds, bands.toArray).map { case (gb, tile) =>
+            convertRaster(Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = true)))
+          }
         }
       }
-    }
+    }.flatten
 }
 

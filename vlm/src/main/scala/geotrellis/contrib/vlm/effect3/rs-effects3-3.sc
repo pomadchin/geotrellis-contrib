@@ -1,6 +1,5 @@
-import cats._
-import cats.implicits._
 import cats.effect._
+import cats.implicits._
 import geotrellis.contrib.vlm.effect3.geotiff._
 import geotrellis.raster.{MultibandTile, Raster}
 import geotrellis.vector.Extent
@@ -12,7 +11,7 @@ val uri = "/Users/daunnc/subversions/git/github/pomadchin/geotrellis-contrib/gda
 object optcase {
   lazy val source: GeoTiffRasterSource[Option] = GeoTiffRasterSource[Option](uri)
 
-  lazy val raster1: Option[Raster[MultibandTile]] = source.read(/*Extent(0, 0, 1, 1)*/)
+  lazy val raster1: Option[Raster[MultibandTile]] = source.read(Extent(0, 0, 1, 1))
   lazy val raster2: Option[Raster[MultibandTile]] = source.read(Extent(630000.0, 215000.0, 639000.0, 219500.0))
   lazy val raster3: Option[Raster[MultibandTile]] = source.read()
 
@@ -34,7 +33,7 @@ object iocase {
 
   lazy val source: GeoTiffRasterSource[IO] = GeoTiffRasterSource[IO](uri)
 
-  lazy val raster1: IO[Raster[MultibandTile]] = source.read(/*Extent(0, 0, 1, 1)*/)
+  lazy val raster1: IO[Raster[MultibandTile]] = source.read(Extent(0, 0, 1, 1))
   lazy val raster2: IO[Raster[MultibandTile]] = source.read(Extent(630000.0, 215000.0, 639000.0, 219500.0))
   lazy val raster3: IO[Raster[MultibandTile]] = source.read()
 

@@ -32,16 +32,16 @@ import cats.syntax.flatMap._
 import cats.syntax.apply._
 import cats.syntax.functor._
 
-case class GeoTiffResampleRasterSource[F[_]](
+case class GeoTiffResampleRasterSource[F[_]: GeoTiffMultibandReader: UnsafeLift](
   uri: String,
   resampleGrid: ResampleGrid[Long],
   method: ResampleMethod = NearestNeighbor,
   strategy: OverviewStrategy = AutoHigherResolution,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-)(implicit val F: Monad[F], implicit val reader: GeoTiffMultibandReader[F]) extends RasterSourceF[F] {
+)(implicit val F: Monad[F]) extends RasterSourceF[F] {
   def resampleMethod: Option[ResampleMethod] = Some(method)
 
-  @transient lazy val tiffF: F[MultibandGeoTiff] = reader.read(uri)
+  @transient lazy val tiffF: F[MultibandGeoTiff] = GeoTiffMultibandReader[F].read(uri)
 
   def crs: F[CRS] = tiffF.map(_.crs)
   def bandCount: F[Int] = tiffF.map(_.bandCount)
@@ -95,26 +95,30 @@ case class GeoTiffResampleRasterSource[F[_]](
 
   override def readBounds(bounds: Traversable[GridBounds[Long]], bands: Seq[Int]): F[Iterator[Raster[MultibandTile]]] =
     (closestTiffOverview, this.gridBounds, gridExtent).mapN { (closestTiffOverview, gridBounds, gridExtent) =>
-      RasterSourceF.synchronized {
-        val geoTiffTile = closestTiffOverview.tile.asInstanceOf[GeoTiffMultibandTile]
+      UnsafeLift[F].apply {
+        RasterSourceF.synchronized {
+          val geoTiffTile = closestTiffOverview.tile.asInstanceOf[GeoTiffMultibandTile]
 
-        val windows = { for {
-          queryPixelBounds <- bounds
-          targetPixelBounds <- queryPixelBounds.intersection(gridBounds)
-        } yield {
-          val targetExtent = gridExtent.extentFor(targetPixelBounds)
-          val sourcePixelBounds = closestTiffOverview.rasterExtent.gridBoundsFor(targetExtent, clamp = true)
-          val targetRasterExtent = RasterExtent(targetExtent, targetPixelBounds.width.toInt, targetPixelBounds.height.toInt)
-          (sourcePixelBounds, targetRasterExtent)
-        }}.toMap
+          val windows = {
+            for {
+              queryPixelBounds <- bounds
+              targetPixelBounds <- queryPixelBounds.intersection(gridBounds)
+            } yield {
+              val targetExtent = gridExtent.extentFor(targetPixelBounds)
+              val sourcePixelBounds = closestTiffOverview.rasterExtent.gridBoundsFor(targetExtent, clamp = true)
+              val targetRasterExtent = RasterExtent(targetExtent, targetPixelBounds.width.toInt, targetPixelBounds.height.toInt)
+              (sourcePixelBounds, targetRasterExtent)
+            }
+          }.toMap
 
-        geoTiffTile.crop(windows.keys.toSeq, bands.toArray).map { case (gb, tile) =>
-          val targetRasterExtent = windows(gb)
-          Raster(
-            tile = tile,
-            extent = targetRasterExtent.extent
-          ).resample(targetRasterExtent.cols, targetRasterExtent.rows, method)
+          geoTiffTile.crop(windows.keys.toSeq, bands.toArray).map { case (gb, tile) =>
+            val targetRasterExtent = windows(gb)
+            Raster(
+              tile = tile,
+              extent = targetRasterExtent.extent
+            ).resample(targetRasterExtent.cols, targetRasterExtent.rows, method)
+          }
         }
       }
-    }
+    }.flatten
 }

@@ -24,6 +24,8 @@ trait GeoTiffMultibandReader[F[_]] {
 }
 
 object GeoTiffMultibandReader {
+  def apply[F[_]: GeoTiffMultibandReader]: GeoTiffMultibandReader[F] = implicitly[GeoTiffMultibandReader[F]]
+
   implicit val geoTiffMultibandReaderIO: GeoTiffMultibandReaderSync[IO] = new GeoTiffMultibandReaderSync[IO]
   implicit val geoTiffMultibandReaderId: GeoTiffMultibandReaderOption = new GeoTiffMultibandReaderOption
 }
