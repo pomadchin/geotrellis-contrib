@@ -55,6 +55,7 @@ case class GeoTiffReprojectRasterSource(
       case Some(targetRegion: TargetRegion[Long]) => targetRegion.region
       case Some(targetGrid: TargetGrid[Long]) => targetGrid(reprojectedRasterExtent)
       case Some(dimensions: Dimensions[Long]) => dimensions(reprojectedRasterExtent)
+      case Some(targetCellSize: TargetCellSize[Long]) => targetCellSize(reprojectedRasterExtent)
       case _ => reprojectedRasterExtent
     }
   }
