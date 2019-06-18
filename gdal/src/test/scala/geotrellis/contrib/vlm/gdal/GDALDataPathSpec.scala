@@ -18,7 +18,6 @@ package geotrellis.contrib.vlm.gdal
 
 import org.scalatest._
 
-
 class GDALDataPathSpec extends FunSpec with Matchers {
   val fileName = "file-1.tiff"
 

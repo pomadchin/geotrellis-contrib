@@ -24,6 +24,7 @@ import geotrellis.raster.resample._
 import geotrellis.proj4._
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiff, GeoTiffMultibandTile, MultibandGeoTiff, OverviewStrategy}
 import geotrellis.raster.io.geotiff.reader.GeoTiffReader
+import geotrellis.util.RangeReader
 
 case class GeoTiffReprojectRasterSource(
   dataPath: GeoTiffDataPath,
@@ -35,7 +36,7 @@ case class GeoTiffReprojectRasterSource(
   private[vlm] val targetCellType: Option[TargetCellType] = None
 ) extends RasterSource { self =>
   @transient lazy val tiff: MultibandGeoTiff =
-    GeoTiffReader.readMultiband(getByteReader(dataPath.geoTiffPath), streaming = true)
+    GeoTiffReader.readMultiband(RangeReader(dataPath.geoTiffPath), streaming = true)
 
   protected lazy val baseCRS: CRS = tiff.crs
   protected lazy val baseGridExtent: GridExtent[Long] = tiff.rasterExtent.toGridType[Long]

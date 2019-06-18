@@ -20,17 +20,17 @@ import geotrellis.contrib.vlm._
 import geotrellis.vector._
 import geotrellis.proj4._
 import geotrellis.raster._
-import geotrellis.raster.reproject.Reproject
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiffMultibandTile, MultibandGeoTiff, OverviewStrategy}
 import geotrellis.raster.io.geotiff.reader.GeoTiffReader
+import geotrellis.util.RangeReader
 
 case class GeoTiffRasterSource(
   dataPath: GeoTiffDataPath,
   private[vlm] val targetCellType: Option[TargetCellType] = None
 ) extends RasterSource {
   @transient lazy val tiff: MultibandGeoTiff =
-    GeoTiffReader.readMultiband(getByteReader(dataPath.geoTiffPath), streaming = true)
+    GeoTiffReader.readMultiband(RangeReader(dataPath.geoTiffPath), streaming = true)
 
   lazy val gridExtent: GridExtent[Long] = tiff.rasterExtent.toGridType[Long]
   lazy val resolutions: List[GridExtent[Long]] = gridExtent :: tiff.overviews.map(_.rasterExtent.toGridType[Long])
