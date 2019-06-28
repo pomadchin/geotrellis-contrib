@@ -55,8 +55,8 @@ case class GeoTiffResampleRasterSource(
   @transient protected lazy val closestTiffOverview: GeoTiff[MultibandTile] =
     tiff.getClosestOverview(gridExtent.cellSize, strategy)
 
-  def reproject(targetCRS: CRS, resampleGrid: Option[ResampleGrid[Long]] = None, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource =
-    new GeoTiffReprojectRasterSource(uri, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType) {
+  def reproject(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource =
+    new GeoTiffReprojectRasterSource(dataPath, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType) {
       override lazy val gridExtent: GridExtent[Long] = {
         val reprojectedRasterExtent =
           ReprojectRasterExtent(
@@ -66,10 +66,10 @@ case class GeoTiffResampleRasterSource(
           )
 
         targetResampleGrid match {
-          case Some(targetRegion: TargetRegion[Long]) => targetRegion.region
-          case Some(targetGrid: TargetGrid[Long]) => targetGrid(reprojectedRasterExtent)
-          case Some(dimensions: Dimensions[Long]) => dimensions(reprojectedRasterExtent)
-          case Some(targetCellSize: TargetCellSize[Long]) => targetCellSize(reprojectedRasterExtent)
+          case targetRegion: TargetRegion[Long] => targetRegion.region
+          case targetGrid: TargetGrid[Long] => targetGrid(reprojectedRasterExtent)
+          case dimensions: Dimensions[Long] => dimensions(reprojectedRasterExtent)
+          case targetCellSize: TargetCellSize[Long] => targetCellSize(reprojectedRasterExtent)
           case _ => reprojectedRasterExtent
         }
       }

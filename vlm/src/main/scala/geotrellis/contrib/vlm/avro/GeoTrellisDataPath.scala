@@ -17,7 +17,7 @@
 package geotrellis.contrib.vlm.avro
 
 import geotrellis.contrib.vlm.DataPath
-import geotrellis.spark.LayerId
+import geotrellis.store.LayerId
 
 
 /** Represents a path that points to a GeoTrellis layer saved in a catalog.

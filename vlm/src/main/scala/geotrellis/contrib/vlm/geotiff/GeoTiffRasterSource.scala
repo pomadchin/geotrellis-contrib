@@ -39,8 +39,8 @@ case class GeoTiffRasterSource(
   def bandCount: Int = tiff.bandCount
   def cellType: CellType = dstCellType.getOrElse(tiff.cellType)
 
-  def reproject(targetCRS: CRS, resampleGrid: Option[ResampleGrid[Long]] = None, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource =
-    GeoTiffReprojectRasterSource(uri, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType)
+  def reproject(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource =
+    GeoTiffReprojectRasterSource(dataPath, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType)
 
   def resample(resampleGrid: ResampleGrid[Long], method: ResampleMethod, strategy: OverviewStrategy): GeoTiffResampleRasterSource =
     GeoTiffResampleRasterSource(dataPath, resampleGrid, method, strategy, targetCellType)
@@ -71,8 +71,7 @@ case class GeoTiffRasterSource(
   override def readBounds(bounds: Traversable[GridBounds[Long]], bands: Seq[Int]): Iterator[Raster[MultibandTile]] = {
     val geoTiffTile = tiff.tile.asInstanceOf[GeoTiffMultibandTile]
     val intersectingBounds: Seq[GridBounds[Int]] =
-      bounds.flatMap(_.intersection(this.gridBounds)).
-        toSeq.map(b => b.toGridType[Int])
+      bounds.flatMap(_.intersection(this.gridBounds)).toSeq.map(_.toGridType[Int])
 
     geoTiffTile.crop(intersectingBounds, bands.toArray).map { case (gb, tile) =>
       convertRaster(Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = true)))

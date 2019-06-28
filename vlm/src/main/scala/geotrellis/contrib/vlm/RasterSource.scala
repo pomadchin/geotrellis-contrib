@@ -79,10 +79,10 @@ trait RasterSource extends CellGrid[Long] with Serializable {
   /** Raster pixel row count */
   def rows: Long = gridExtent.rows
 
-  def reproject(targetCRS: CRS, resampleGrid: Option[ResampleGrid[Long]] = None, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): RasterSource
+  def reproject(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): RasterSource
 
   def reprojectToGrid(crs: CRS, grid: GridExtent[Long], method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): RasterSource =
-    reproject(crs, Some(TargetGrid[Long](grid)), method, strategy)
+    reproject(crs, TargetGrid[Long](grid), method, strategy)
 
   /** Sampling grid and resolution is defined by given [[RasterExtent]] region.
     * The extent of the result is also taken from given [[RasterExtent]],
@@ -90,7 +90,7 @@ trait RasterSource extends CellGrid[Long] with Serializable {
     * @group reproject
     */
   def reprojectToRegion(crs: CRS, region: RasterExtent, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): RasterSource =
-    reproject(crs, Some(TargetRegion[Long](region.toGridType[Long])), method, strategy)
+    reproject(crs, TargetRegion[Long](region.toGridType[Long]), method, strategy)
 
 
   def resample(resampleGrid: ResampleGrid[Long], method: ResampleMethod, strategy: OverviewStrategy): RasterSource
