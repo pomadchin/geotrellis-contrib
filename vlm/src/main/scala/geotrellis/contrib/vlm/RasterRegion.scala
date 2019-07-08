@@ -20,14 +20,26 @@ import geotrellis.proj4.CRS
 import geotrellis.raster._
 import geotrellis.vector.Extent
 
+import cats.instances.option._
+import cats._
+import cats.free._
+
 /**
   * Reference to a pixel region in a [[RasterSource]] that may be read at a later time.
   */
 trait RasterRegion extends ProjectedRasterLike with Serializable {
-  def raster: Option[Raster[MultibandTile]]
+  def raster: Option[RasterRegion.LazyRaster[MultibandTile]]
 }
 
 object RasterRegion {
+  implicit class coyonedaExt[F[_], A](self: Coyoneda[F, A]) {
+    def flatMap[G[_]](f: F ~> Coyoneda[G, ?]): Coyoneda[G, A] =
+      f(self.fi).map(self.k)
+  }
+
+  type LazyRaster[T <: CellGrid[Int]] = Coyoneda[Option, Raster[T]]
+  type LazyTile[T <: CellGrid[Int]] = Coyoneda[Option, T]
+
   /** Reference to a pixel region in a [[RasterSource]] that may be read at a later time.
     * @note It is required that the [[RasterSource]] intersects with the given [[GridBounds]].
     *
@@ -39,19 +51,24 @@ object RasterRegion {
 
   case class GridBoundsRasterRegion(source: RasterSource, bounds: GridBounds[Long]) extends RasterRegion {
     require(bounds.intersects(source.gridBounds), s"The given bounds: $bounds must intersect the given source: $source")
-    @transient lazy val raster: Option[Raster[MultibandTile]] =
+
+    @transient lazy val raster: Option[LazyRaster[MultibandTile]] =
       for {
         intersection <- source.gridBounds.intersection(bounds)
-        raster <- source.read(intersection)
+        lazyRaster = Coyoneda.lift(source.read(intersection))
       } yield {
-        if (raster.tile.cols == cols && raster.tile.rows == rows)
-          raster
-        else {
-          val colOffset = math.abs(bounds.colMin - intersection.colMin)
-          val rowOffset = math.abs(bounds.rowMin - intersection.rowMin)
-          require(colOffset <= Int.MaxValue && rowOffset <= Int.MaxValue, "Computed offsets are outside of RasterBounds")
-          raster.mapTile { _.mapBands { (_, band) => PaddedTile(band, colOffset.toInt, rowOffset.toInt, cols, rows) } }
+        val res = lazyRaster.map { raster =>
+          if (raster.tile.cols == cols && raster.tile.rows == rows)
+            raster
+          else {
+            val colOffset = math.abs(bounds.colMin - intersection.colMin)
+            val rowOffset = math.abs(bounds.rowMin - intersection.rowMin)
+            require(colOffset <= Int.MaxValue && rowOffset <= Int.MaxValue, "Computed offsets are outside of RasterBounds")
+            raster.mapTile { _.mapBands { (_, band) => PaddedTile(band, colOffset.toInt, rowOffset.toInt, cols, rows) } }
+          }
         }
+
+        res
       }
 
     override def cols: Int = bounds.width.toInt

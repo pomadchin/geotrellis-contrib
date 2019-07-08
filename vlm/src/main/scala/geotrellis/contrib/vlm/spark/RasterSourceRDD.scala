@@ -16,6 +16,7 @@
 
 package geotrellis.contrib.vlm.spark
 
+import geotrellis.contrib.vlm.RasterRegion._
 import geotrellis.contrib.vlm.{LayoutTileSource, RasterRegion, RasterSource, ReadingSource}
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.raster.{ArrayTile, MultibandTile, NODATA, Tile}
@@ -27,6 +28,9 @@ import org.apache.spark.{Partitioner, SparkContext}
 
 import scala.collection.mutable.ArrayBuilder
 import scala.reflect.ClassTag
+
+import cats.syntax.functor._
+import cats._
 
 object RasterSourceRDD {
   final val DEFAULT_PARTITION_BYTES: Long = 128l * 1024 * 1024
@@ -195,13 +199,26 @@ object RasterSourceRDD {
     val rasterRegionRDD: RDD[(SpatialKey, RasterRegion)] =
       tiledLayoutSourceRDD.flatMap { _.keyedRasterRegions() }
 
-    val tiledRDD: RDD[(SpatialKey, MultibandTile)] =
+    val tiledRDD: RDD[(SpatialKey, LazyTile[MultibandTile])] =
       rasterRegionRDD
         .groupByKey(partitioner.getOrElse(SpatialPartitioner(summary.estimatePartitionsNumber)))
         .mapValues { iter =>
-          MultibandTile(
-            iter.flatMap { _.raster.toSeq.flatMap { _.tile.bands } }
-          )
+
+          import RasterRegion._
+          val r: LazyRaster[MultibandTile] = iter.toList(0).raster.get
+
+          r.flatMap[Option] { opt: Option[_] => r }
+
+
+          val res: Iterable[LazyTile[MultibandTile]] = iter.flatMap { _.raster.map(_.map(r => MultibandTile(r.tile.bands))) }
+
+          res.reduce((r, l) => r.map)
+
+          /*MultibandTile(
+            iter.flatMap { _.raster.toSeq.map(_.map(_.tile.bands)) }
+          )*/
+
+          null
         }
 
     ContextRDD(tiledRDD, layerMetadata)
