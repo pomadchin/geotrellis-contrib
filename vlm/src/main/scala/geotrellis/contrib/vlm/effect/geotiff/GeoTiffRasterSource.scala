@@ -42,15 +42,15 @@ case class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.path), streaming = true)
   @transient lazy val tiffF: F[MultibandGeoTiff] = UnsafeLift[F].apply(tiff)
 
-  lazy val gridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
-  lazy val resolutions: F[List[GridExtent[Long]]] = tiffF.map { tiff =>
-    tiff.rasterExtent.toGridType[Long] :: tiff.overviews.map(_.rasterExtent.toGridType[Long])
-  }
-
-  def crs: F[CRS] = tiffF.map(_.crs)
-  def bandCount: F[Int] = tiffF.map(_.bandCount)
-  def cellType: F[CellType] = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure)
-  def metadata: F[GeoTiffMetadata] = GeoTiffMetadata(tiffF.map(_.tags), this)
+  lazy val metadata: F[GeoTiffMetadata] =
+    GeoTiffMetadata(
+      tags        = tiffF.map(_.tags),
+      crs         = tiffF.map(_.crs),
+      bandCount   = tiffF.map(_.bandCount),
+      cellType    = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure),
+      gridExtent  = tiffF.map(_.rasterExtent.toGridType[Long]),
+      resolutions = tiffF.map { tiff => tiff.rasterExtent.toGridType[Long] :: tiff.overviews.map(_.rasterExtent.toGridType[Long]) }
+    )
 
   def reprojection(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource[F] =
     GeoTiffReprojectRasterSource(dataPath, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType)

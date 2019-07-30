@@ -16,8 +16,7 @@
 
 package geotrellis.contrib.vlm.avro
 
-import geotrellis.contrib.vlm.effect.RasterSourceF
-import geotrellis.contrib.vlm.{RasterSourceMetadata, SourceMetadata}
+import geotrellis.contrib.vlm.SourceMetadata
 import geotrellis.proj4.CRS
 import geotrellis.raster.{CellType, GridExtent}
 
@@ -36,9 +35,13 @@ case class GeoTrellisMetadata(
 }
 
 object GeoTrellisMetadata {
-  def apply(base: Map[String, String], rasterSource: RasterSourceMetadata): GeoTrellisMetadata =
-    GeoTrellisMetadata(base, rasterSource.crs, rasterSource.bandCount, rasterSource.cellType, rasterSource.gridExtent, rasterSource.resolutions)
-
-  def apply[F[_]: Monad](base: F[Map[String, String]], rasterSource: RasterSourceF[F]): F[GeoTrellisMetadata] =
-    (base, rasterSource: F[RasterSourceMetadata]).mapN(GeoTrellisMetadata.apply)
+  def apply[F[_]: Monad](
+    base: F[Map[String, String]],
+    crs: F[CRS],
+    bandCount: F[Int],
+    cellType: F[CellType],
+    gridExtent: F[GridExtent[Long]],
+    resolutions: F[List[GridExtent[Long]]]
+  ): F[GeoTrellisMetadata] =
+    (base, crs, bandCount, cellType, gridExtent, resolutions).mapN(GeoTrellisMetadata.apply)
 }

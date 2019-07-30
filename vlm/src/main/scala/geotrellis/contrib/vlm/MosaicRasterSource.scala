@@ -42,7 +42,6 @@ import spire.math.Integral
 trait MosaicRasterSource extends RasterSource {
 
   val sources: NonEmptyList[RasterSource]
-  val crs: CRS
   def gridExtent: GridExtent[Long]
 
   import MosaicRasterSource._
@@ -61,31 +60,32 @@ trait MosaicRasterSource extends RasterSource {
 
   val targetCellType = None
 
-  /**
-    * The bandCount of the first [[RasterSource]] in sources
-    *
-    * If this value is larger than the bandCount of later [[RasterSource]]s in sources,
-    * reads of all bands will fail. It is a client's responsibility to construct
-    * mosaics that can be read.
-    */
-  def bandCount: Int = sources.head.bandCount
-
-  def cellType: CellType = {
+  override def cellType: CellType = {
     val cellTypes = sources map { _.cellType }
     cellTypes.tail.foldLeft(cellTypes.head)(_ union _)
   }
 
   /** All available metadata that was not covered by other RasterSource metadata methods */
-  def metadata: MosaicMetadata = MosaicMetadata(sources.map(_.metadata), this)
-
-  /**
-    * All available resolutions for all RasterSources in this MosaicRasterSource
-    *
-    * @see [[geotrellis.contrib.vlm.RasterSource.resolutions]]
-    */
-  def resolutions: List[GridExtent[Long]] = { val resolutions = sources map { _.resolutions }
-    resolutions.reduce
-  }
+  def metadata: MosaicMetadata = MosaicMetadata(
+    sources.map(_.metadata),
+    crs = crs,
+    /**
+      * The bandCount of the first [[RasterSource]] in sources
+      *
+      * If this value is larger than the bandCount of later [[RasterSource]]s in sources,
+      * reads of all bands will fail. It is a client's responsibility to construct
+      * mosaics that can be read.
+      */
+    bandCount = sources.head.bandCount,
+    cellType = cellType,
+    gridExtent,
+    /**
+      * All available resolutions for all RasterSources in this MosaicRasterSource
+      *
+      * @see [[geotrellis.contrib.vlm.RasterSource.resolutions]]
+      */
+    resolutions = sources.map { _.resolutions }.reduce
+  )
 
   /** Create a new MosaicRasterSource with sources transformed according to the provided
     * crs, options, and strategy, and a new crs
@@ -154,17 +154,17 @@ object MosaicRasterSource {
   def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS, targetGridExtent: GridExtent[Long]) = {
     new MosaicRasterSource {
       val sources = sourcesList map { _.reprojectToGrid(targetCRS, gridExtent) }
-      val crs = targetCRS
+      override val crs = targetCRS
 
-      def gridExtent: GridExtent[Long] = targetGridExtent
+      override def gridExtent: GridExtent[Long] = targetGridExtent
     }
   }
 
   def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS) = {
     new MosaicRasterSource {
       val sources = sourcesList map { _.reprojectToGrid(targetCRS, sourcesList.head.gridExtent) }
-      val crs = targetCRS
-      def gridExtent: GridExtent[Long] = {
+      override val crs = targetCRS
+      override def gridExtent: GridExtent[Long] = {
         val reprojectedExtents =
           sourcesList map { source => source.gridExtent.reproject(source.crs, targetCRS) }
         val minCellSize: CellSize = reprojectedExtents.toList map { rasterExtent =>
@@ -185,7 +185,7 @@ object MosaicRasterSource {
                      targetGridExtent: Option[GridExtent[Long]]) =
     new MosaicRasterSource {
       val sources = NonEmptyList(sourcesList.head, sourcesList.tail)
-      val crs = targetCRS
-      def gridExtent: GridExtent[Long] = targetGridExtent getOrElse { sourcesList.head.gridExtent}
+      override val crs = targetCRS
+      override def gridExtent: GridExtent[Long] = targetGridExtent getOrElse { sourcesList.head.gridExtent}
     }
 }

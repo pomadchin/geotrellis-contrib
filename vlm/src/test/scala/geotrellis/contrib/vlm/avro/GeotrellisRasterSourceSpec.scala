@@ -24,9 +24,8 @@ import geotrellis.raster.io.geotiff.reader.GeoTiffReader
 import geotrellis.raster.testkit._
 import geotrellis.raster.MultibandTile
 import geotrellis.raster.resample.NearestNeighbor
-import geotrellis.store.{CollectionLayerReader, LayerId}
+import geotrellis.store.{AttributeNotFoundError, CollectionLayerReader, LayerId}
 import geotrellis.vector.Extent
-
 import org.scalatest.{FunSpec, GivenWhenThen}
 
 class GeotrellisRasterSourceSpec extends FunSpec with RasterMatchers with BetterRasterMatchers with GivenWhenThen with CatalogTestEnvironment {
@@ -118,11 +117,10 @@ class GeotrellisRasterSourceSpec extends FunSpec with RasterMatchers with Better
     it("should have resolutions only for given layer name") {
       assert(
         sourceMultiband.resolutions.length ===
-          CollectionLayerReader(uriMultibandNoParams).attributeStore.layerIds.filter(_.name == layerId.name).length
+          CollectionLayerReader(uriMultibandNoParams).attributeStore.layerIds.count(_.name == layerId.name)
       )
-      assert(
-        new GeotrellisRasterSource(s"$uriMultibandNoParams?layer=bogusLayer&zoom=0").resolutions.length === 0
-      )
+
+      intercept[AttributeNotFoundError](new GeotrellisRasterSource(s"$uriMultibandNoParams?layer=bogusLayer&zoom=0").resolutions)
     }
 
     it("should get the closest resolution") {

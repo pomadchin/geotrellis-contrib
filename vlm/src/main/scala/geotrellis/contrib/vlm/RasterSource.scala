@@ -48,6 +48,13 @@ trait RasterSource extends CellGrid[Long] with RasterSourceMetadata with Seriali
   /** All available RasterSource metadata */
   def metadata: SourceMetadata
 
+  /** By default all derived metadata products are inside the [[SourceMetadata]] object */
+  def gridExtent: GridExtent[Long] = metadata.gridExtent
+  def resolutions: List[GridExtent[Long]] = metadata.resolutions
+  def crs: CRS = metadata.crs
+  def bandCount: Int = metadata.bandCount
+  def cellType: CellType = metadata.cellType
+
   protected def reprojection(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): RasterSource
 
   /** Reproject to different CRS with explicit sampling reprojectOptions.

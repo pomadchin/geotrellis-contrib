@@ -28,7 +28,7 @@ import geotrellis.util.RangeReader
 
 case class GeoTiffReprojectRasterSource(
   dataPath: GeoTiffDataPath,
-  crs: CRS,
+  override val crs: CRS,
   targetResampleGrid: ResampleGrid[Long] = IdentityResampleGrid,
   resampleMethod: ResampleMethod = NearestNeighbor,
   strategy: OverviewStrategy = AutoHigherResolution,
@@ -62,8 +62,8 @@ case class GeoTiffReprojectRasterSource(
     }
   }
 
-  lazy val resolutions: List[GridExtent[Long]] =
-      gridExtent :: tiff.overviews.map(ovr => ReprojectRasterExtent(ovr.rasterExtent.toGridType[Long], transform))
+  override lazy val resolutions: List[GridExtent[Long]] =
+    gridExtent :: tiff.overviews.map(ovr => ReprojectRasterExtent(ovr.rasterExtent.toGridType[Long], transform))
 
   @transient private[vlm] lazy val closestTiffOverview: GeoTiff[MultibandTile] = {
     targetResampleGrid match {
@@ -75,9 +75,14 @@ case class GeoTiffReprojectRasterSource(
     }
   }
 
-  def bandCount: Int = tiff.bandCount
-  def cellType: CellType = dstCellType.getOrElse(tiff.cellType)
-  def metadata: GeoTiffMetadata = GeoTiffMetadata(tiff.tags, this)
+  lazy val metadata: GeoTiffMetadata = GeoTiffMetadata(
+    tags        = tiff.tags,
+    crs         = crs,
+    bandCount   = tiff.bandCount,
+    cellType    = dstCellType.getOrElse(tiff.cellType),
+    gridExtent  = gridExtent,
+    resolutions = resolutions
+  )
 
   def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
     val bounds = gridExtent.gridBoundsFor(extent, clamp = false)

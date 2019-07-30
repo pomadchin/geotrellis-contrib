@@ -23,7 +23,6 @@ import geotrellis.raster.resample._
 import geotrellis.proj4._
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, OverviewStrategy}
 import geotrellis.layer.LayoutDefinition
-// import geotrellis.util.GetComponent
 
 import cats._
 import cats.syntax.flatMap._
@@ -34,6 +33,16 @@ import cats.instances.list._
 
 abstract class RasterSourceF[F[_]: Monad] extends RasterSourceMetadataF[F] with Serializable {
   def dataPath: DataPath
+
+  /** All available RasterSource metadata */
+  def metadata: F[_ <: SourceMetadata]
+
+  /** By default all derived metadata products are inside the [[SourceMetadata]] object */
+  def gridExtent: F[GridExtent[Long]] = metadata.map(_.gridExtent)
+  def resolutions: F[List[GridExtent[Long]]] = metadata.map(_.resolutions)
+  def crs: F[CRS] = metadata.map(_.crs)
+  def bandCount: F[Int] = metadata.map(_.bandCount)
+  def cellType: F[CellType] = metadata.map(_.cellType)
 
   private[vlm] def targetCellType: Option[TargetCellType]
 
@@ -192,9 +201,4 @@ abstract class RasterSourceF[F[_]: Monad] extends RasterSourceMetadataF[F] with 
       case _ =>
         (raster: Raster[MultibandTile]) => raster
     }
-}
-
-object RasterSourceF {
-  //implicit def projectedExtentComponent[F[_], T <: RasterSourceF[F]]: GetComponent[T, ProjectedExtent] =
-    //GetComponent(rs => ProjectedExtent(rs.extent, rs.crs))
 }

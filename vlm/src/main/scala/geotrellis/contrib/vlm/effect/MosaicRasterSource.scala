@@ -49,7 +49,6 @@ abstract class MosaicRasterSource[F[_]: Monad: Par] extends RasterSourceF[F] {
   import MosaicRasterSource._
 
   val sources: F[NonEmptyList[RasterSourceF[F]]]
-  val crs: F[CRS]
   def gridExtent: F[GridExtent[Long]]
 
   /**
@@ -66,36 +65,38 @@ abstract class MosaicRasterSource[F[_]: Monad: Par] extends RasterSourceF[F] {
 
   val targetCellType = None
 
-  /**
-    * The bandCount of the first [[RasterSourceF]] in sources
-    *
-    * If this value is larger than the bandCount of later [[RasterSourceF]]s in sources,
-    * reads of all bands will fail. It is a client's responsibility to construct
-    * mosaics that can be read.
-    */
-  def bandCount: F[Int] = sources >>= (_.head.bandCount)
-
-  def cellType: F[CellType] = {
+  override def cellType: F[CellType] = {
     val cellTypes = sources >>= (_.parTraverse(_.cellType))
     cellTypes >>= (_.tail.foldLeft(cellTypes.map(_.head)) { (l, r) => (l, Monad[F].pure(r)).mapN(_ union _) })
   }
-
-  /** All available RasterSources metadata */
-  def metadata: F[MosaicMetadata] =
-    MosaicMetadata(
-      sources >>= { list => list.parTraverse { _.metadata.map { case md: RasterSourceMetadata => md } } },
-      this
-    )
 
   /**
     * All available resolutions for all RasterSources in this MosaicRasterSource
     *
     * @see [[geotrellis.contrib.vlm.RasterSource.resolutions]]
     */
-  def resolutions: F[List[GridExtent[Long]]] = {
+  override def resolutions: F[List[GridExtent[Long]]] = {
     val resolutions: F[NonEmptyList[List[GridExtent[Long]]]] = sources >>= (_.parTraverse(_.resolutions))
     resolutions.map(_.reduce)
   }
+
+  /** All available RasterSources metadata */
+  lazy val metadata: F[MosaicMetadata] =
+    MosaicMetadata(
+      sources >>= { list => list.parTraverse { _.metadata.map { case md: RasterSourceMetadata => md } } },
+      crs,
+      /**
+        * The bandCount of the first [[RasterSourceF]] in sources
+        *
+        * If this value is larger than the bandCount of later [[RasterSourceF]]s in sources,
+        * reads of all bands will fail. It is a client's responsibility to construct
+        * mosaics that can be read.
+        */
+      sources >>= (_.head.bandCount),
+      cellType,
+      gridExtent,
+      resolutions
+    )
 
   /** Create a new MosaicRasterSource with sources transformed according to the provided
     * crs, options, and strategy, and a new crs
@@ -163,8 +164,8 @@ object MosaicRasterSource {
       val sources = (targetCRS, targetGridExtent).mapN { case (targetCRS, targetGridExtent) =>
         sourcesList map { _.map(_.reprojectToGrid(targetCRS, targetGridExtent)) }
       }.flatten
-      val crs = targetCRS
-      def gridExtent: F[GridExtent[Long]] = targetGridExtent
+      override val crs = targetCRS
+      override def gridExtent: F[GridExtent[Long]] = targetGridExtent
     }
 
   def apply[F[_]: Monad: Par](sourcesList: F[NonEmptyList[RasterSourceF[F]]], targetCRS: F[CRS]): MosaicRasterSource[F] =
@@ -176,9 +177,9 @@ object MosaicRasterSource {
           })
         }.flatten
       }
-      val crs = targetCRS
+      override val crs = targetCRS
 
-      def gridExtent: F[GridExtent[Long]] = {
+      override def gridExtent: F[GridExtent[Long]] = {
         val reprojectedExtents: F[NonEmptyList[GridExtent[Long]]] =
           sourcesList >>= { _.parTraverse(source =>
             (source.gridExtent, source.crs, targetCRS).mapN { (gridExtent, sourceCRS, targetCRS) =>
@@ -208,8 +209,8 @@ object MosaicRasterSource {
   ): MosaicRasterSource[F] =
     new MosaicRasterSource[F] {
       val sources = Monad[F].pure(NonEmptyList(sourcesList.head, sourcesList.tail))
-      val crs = Monad[F].pure(targetCRS)
-      def gridExtent: F[GridExtent[Long]] = targetGridExtent.fold(sourcesList.head.gridExtent)(Monad[F].pure)
+      override val crs = Monad[F].pure(targetCRS)
+      override def gridExtent: F[GridExtent[Long]] = targetGridExtent.fold(sourcesList.head.gridExtent)(Monad[F].pure)
     }
 }
 

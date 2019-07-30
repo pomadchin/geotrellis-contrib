@@ -48,7 +48,7 @@ class GeotrellisResampleRasterSource(
   val dataPath: GeoTrellisDataPath,
   val layerId: LayerId,
   val sourceLayers: Stream[Layer],
-  val gridExtent: GridExtent[Long],
+  override val gridExtent: GridExtent[Long],
   val resampleMethod: ResampleMethod = NearestNeighbor,
   val targetCellType: Option[TargetCellType] = None,
   val attributes: List[String] = Nil
@@ -62,15 +62,16 @@ class GeotrellisResampleRasterSource(
   /** GridExtent of source pixels that needs to be resampled */
   lazy val sourceGridExtent: GridExtent[Long] = sourceLayer.gridExtent
 
-  def crs: CRS = sourceLayer.metadata.crs
-
-  def cellType: CellType = dstCellType.getOrElse(sourceLayer.metadata.cellType)
-  def metadata: GeoTrellisMetadata =
-    GeoTrellisMetadata(attributes.map { attribute => attribute -> attributeStore.read[String](layerId, attribute) }.toMap, this)
-
-  def bandCount: Int = sourceLayer.bandCount
-
-  lazy val resolutions: List[GridExtent[Long]] = sourceLayers.map(_.gridExtent).toList
+  lazy val metadata: GeoTrellisMetadata =
+    GeoTrellisMetadata(
+      sourceMetadata = attributes.map { attribute => attribute -> attributeStore.read[String](layerId, attribute) }.toMap,
+      crs            = sourceLayer.metadata.crs,
+      bandCount      = sourceLayer.bandCount,
+      cellType       = dstCellType.getOrElse(sourceLayer.metadata.cellType),
+      gridExtent     = gridExtent,
+      // reference to this will fully initilze the sourceLayers stream
+      resolutions    = sourceLayers.map(_.gridExtent).toList
+    )
 
   def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
     val tileBounds = sourceLayer.metadata.mapTransform.extentToBounds(extent)

@@ -48,12 +48,13 @@ case class GeoTiffReprojectRasterSource[F[_]: Monad: UnsafeLift](
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.path), streaming = true)
   @transient lazy val tiffF: F[MultibandGeoTiff] = UnsafeLift[F].apply(tiff)
 
-  lazy val crs: F[CRS] = Monad[F].pure(targetCRS)
   protected lazy val baseCRS: F[CRS] = tiffF.map(_.crs)
   protected lazy val baseGridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
 
   protected lazy val transform = (baseCRS, crs).mapN((baseCRS, crs) => Transform(baseCRS, crs))
   protected lazy val backTransform = (crs, baseCRS).mapN((crs, baseCRS) => Transform(crs, baseCRS))
+
+  override val crs: F[CRS] =  Monad[F].pure(targetCRS)
 
   override lazy val gridExtent: F[GridExtent[Long]] = {
     lazy val reprojectedRasterExtent: F[GridExtent[Long]] =
@@ -70,11 +71,21 @@ case class GeoTiffReprojectRasterSource[F[_]: Monad: UnsafeLift](
     }
   }
 
-  lazy val resolutions: F[List[GridExtent[Long]]] =
+  override lazy val resolutions: F[List[GridExtent[Long]]] =
     (tiffF, transform).mapN { (tiff, transform) =>
       tiff.rasterExtent.toGridType[Long] ::
         tiff.overviews.map(ovr => ReprojectRasterExtent(ovr.rasterExtent.toGridType[Long], transform))
     }
+
+  lazy val metadata: F[GeoTiffMetadata] =
+    GeoTiffMetadata(
+      tags        = tiffF.map(_.tags),
+      crs         = Monad[F].pure(targetCRS),
+      bandCount   = tiffF.map(_.bandCount),
+      cellType    = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure),
+      gridExtent  = gridExtent,
+      resolutions = resolutions
+    )
 
   @transient private[vlm] lazy val closestTiffOverview: F[GeoTiff[MultibandTile]] = {
     targetResampleGrid match {
@@ -88,10 +99,6 @@ case class GeoTiffReprojectRasterSource[F[_]: Monad: UnsafeLift](
       // we're asked to match specific target resolution, estimate what resolution we need in source to sample it
     }
   }
-
-  def bandCount: F[Int] = tiffF.map(_.bandCount)
-  def cellType: F[CellType] = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure)
-  def metadata: F[GeoTiffMetadata] = GeoTiffMetadata(tiffF.map(_.tags), this)
 
   def read(extent: Extent, bands: Seq[Int]): F[Raster[MultibandTile]] = {
     val bounds = gridExtent.map(_.gridBoundsFor(extent, clamp = false))

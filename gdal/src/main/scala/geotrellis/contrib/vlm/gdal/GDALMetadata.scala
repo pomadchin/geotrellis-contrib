@@ -16,13 +16,12 @@
 
 package geotrellis.contrib.vlm.gdal
 
-import geotrellis.contrib.vlm.{RasterSource, RasterSourceMetadata, SourceMetadata}
+import geotrellis.contrib.vlm.SourceMetadata
 import geotrellis.proj4.CRS
 import geotrellis.raster.{CellType, GridExtent}
 import cats.Monad
 import cats.syntax.apply._
-import cats.syntax.functor._
-import geotrellis.contrib.vlm.effect.RasterSourceF
+import com.azavea.gdal.GDALWarp
 
 case class GDALMetadata(
   gdalBaseMetadata: Map[String, Map[String, String]],
@@ -53,22 +52,49 @@ object GDALMetadata {
     val ALL = List(DEFAULT, IMAGE_STRUCTURE, SUBDATASETS)
   }
 
-  def apply(dataset: GDALDataset, rasterSource: RasterSourceMetadata, datasetType: Int, domains: List[String]): GDALMetadata = {
+  def apply(dataset: GDALDataset, cellType: CellType, datasetType: Int, domains: List[String]): GDALMetadata = {
     if (domains.isEmpty)
       GDALMetadata(
-        dataset.getAllMetadata(datasetType, 0),
-        (1 until dataset.bandCount).toList.map(dataset.getAllMetadata(datasetType, _)),
-        rasterSource.crs, rasterSource.bandCount, rasterSource.cellType, rasterSource.gridExtent, rasterSource.resolutions
+        dataset.getAllMetadata(GDALWarp.SOURCE, 0),
+        (1 until dataset.bandCount).toList.map(dataset.getAllMetadata(GDALWarp.SOURCE, _)),
+        dataset.crs,
+        dataset.bandCount,
+        cellType,
+        dataset.rasterExtent(datasetType).toGridType[Long],
+        /**
+          * Resolutions of available overviews in GDAL Dataset.
+          *
+          * These resolutions could represent actual overview as seen in source file
+          * or overviews of VRT that was created as result of resample operations.
+          *
+          */
+        dataset.resolutions(datasetType).map(_.toGridType[Long])
       )
     else
       GDALMetadata(
-        dataset.getMetadata(datasetType, domains, 0),
-        (1 until dataset.bandCount).toList.map(dataset.getMetadata(datasetType, domains, _)),
-        rasterSource.crs, rasterSource.bandCount, rasterSource.cellType, rasterSource.gridExtent, rasterSource.resolutions
+        dataset.getMetadata(GDALWarp.SOURCE, domains, 0),
+        (1 until dataset.bandCount).toList.map(dataset.getMetadata(GDALWarp.SOURCE, domains, _)),
+        dataset.crs,
+        dataset.bandCount,
+        cellType,
+        dataset.rasterExtent(datasetType).toGridType[Long],
+        /**
+          * Resolutions of available overviews in GDAL Dataset.
+          *
+          * These resolutions could represent actual overview as seen in source file
+          * or overviews of VRT that was created as result of resample operations.
+          *
+          */
+        dataset.resolutions(datasetType).map(_.toGridType[Long])
       )
   }
 
-  def apply[F[_] : Monad](dataset: F[GDALDataset], rasterSource: RasterSourceF[F], datasetType: Int, domains: List[String]): F[GDALMetadata] = {
-    (dataset, rasterSource: F[RasterSourceMetadata]).mapN(GDALMetadata.apply(_, _, datasetType, domains))
+  def apply[F[_] : Monad](
+    dataset: F[GDALDataset],
+    cellType: F[CellType],
+    datasetType: Int,
+    domains: List[String]
+  ): F[GDALMetadata] = {
+    (dataset, cellType).mapN(GDALMetadata.apply(_, _, datasetType, domains))
   }
 }

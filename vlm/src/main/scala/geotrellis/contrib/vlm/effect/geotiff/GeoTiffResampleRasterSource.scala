@@ -46,13 +46,8 @@ case class GeoTiffResampleRasterSource[F[_]: Monad: UnsafeLift](
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.path), streaming = true)
   @transient lazy val tiffF: F[MultibandGeoTiff] = UnsafeLift[F].apply(tiff)
 
-  def crs: F[CRS] = tiffF.map(_.crs)
-  def bandCount: F[Int] = tiffF.map(_.bandCount)
-  def cellType: F[CellType] = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure)
-  def metadata: F[GeoTiffMetadata] = GeoTiffMetadata(tiffF.map(_.tags), this)
-
-  lazy val gridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
-  lazy val resolutions: F[List[GridExtent[Long]]] = {
+  override lazy val gridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
+  override lazy val resolutions: F[List[GridExtent[Long]]] = {
     (tiffF, gridExtent).mapN { (tiff, gridExtent) =>
       val ratio = gridExtent.cellSize.resolution / tiff.rasterExtent.cellSize.resolution
       gridExtent :: tiff.overviews.map { ovr =>
@@ -62,6 +57,16 @@ case class GeoTiffResampleRasterSource[F[_]: Monad: UnsafeLift](
       }
     }
   }
+
+  lazy val metadata: F[GeoTiffMetadata] =
+    GeoTiffMetadata(
+      tags        = tiffF.map(_.tags),
+      crs         = tiffF.map(_.crs),
+      bandCount   = tiffF.map(_.bandCount),
+      cellType    = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure),
+      gridExtent  = gridExtent,
+      resolutions = resolutions
+    )
 
   @transient protected lazy val closestTiffOverview: F[GeoTiff[MultibandTile]] =
     (tiffF, gridExtent).mapN { (tiff, gridExtent) => tiff.getClosestOverview(gridExtent.cellSize, strategy) }

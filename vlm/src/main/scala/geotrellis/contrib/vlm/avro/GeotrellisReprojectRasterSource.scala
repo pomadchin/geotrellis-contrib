@@ -33,8 +33,8 @@ class GeotrellisReprojectRasterSource(
   val dataPath: GeoTrellisDataPath,
   val layerId: LayerId,
   val sourceLayers: Stream[Layer],
-  val gridExtent: GridExtent[Long],
-  val crs: CRS,
+  override val gridExtent: GridExtent[Long],
+  override val crs: CRS,
   val targetResampleGrid: ResampleGrid[Long] = IdentityResampleGrid,
   val resampleMethod: ResampleMethod = NearestNeighbor,
   val strategy: OverviewStrategy = AutoHigherResolution,
@@ -45,19 +45,21 @@ class GeotrellisReprojectRasterSource(
 
   lazy val reader = CollectionLayerReader(attributeStore, dataPath.path)
 
-  lazy val resolutions: List[GridExtent[Long]] = {
-    sourceLayers.map { layer =>
-      ReprojectRasterExtent(layer.gridExtent, layer.metadata.crs, crs)
-    }
-  }.toList
+  override lazy val resolutions: List[GridExtent[Long]] =
+    sourceLayers.map { layer => ReprojectRasterExtent(layer.gridExtent, layer.metadata.crs, crs) }.toList
 
   lazy val sourceLayer: Layer = sourceLayers.find(_.id == layerId).get
 
-  def bandCount: Int = sourceLayer.bandCount
-
-  def cellType: CellType = dstCellType.getOrElse(sourceLayer.metadata.cellType)
-  def metadata: GeoTrellisMetadata =
-    GeoTrellisMetadata(attributes.map { attribute => attribute -> attributeStore.read[String](layerId, attribute) }.toMap, this)
+  lazy val metadata: GeoTrellisMetadata =
+    GeoTrellisMetadata(
+      sourceMetadata = attributes.map { attribute => attribute -> attributeStore.read[String](layerId, attribute) }.toMap,
+      crs            = crs,
+      bandCount      = sourceLayer.bandCount,
+      cellType       = dstCellType.getOrElse(sourceLayer.metadata.cellType),
+      gridExtent     = gridExtent,
+      // reference to this will fully initilze the sourceLayers stream
+      resolutions    = resolutions
+    )
 
   def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
     val transform = Transform(sourceLayer.metadata.crs, crs)

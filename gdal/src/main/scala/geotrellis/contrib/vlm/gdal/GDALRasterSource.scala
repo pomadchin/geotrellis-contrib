@@ -40,27 +40,11 @@ case class GDALRasterSource(
   @transient lazy val dataset: GDALDataset =
     GDALDataset(path, options.toWarpOptionsList.toArray)
 
-  lazy val metadata: GDALMetadata = GDALMetadata(dataset, this, GDALWarp.SOURCE, domains)
-
-  lazy val bandCount: Int = dataset.bandCount
-
-  lazy val crs: CRS = dataset.crs
-
   // noDataValue from the previous step
   lazy val noDataValue: Option[Double] = dataset.noDataValue(GDALWarp.SOURCE)
-
   lazy val dataType: Int = dataset.dataType
 
-  lazy val cellType: CellType = dstCellType.getOrElse(dataset.cellType)
-
-  lazy val gridExtent: GridExtent[Long] = dataset.rasterExtent(datasetType).toGridType[Long]
-
-  /** Resolutions of available overviews in GDAL Dataset
-    *
-    * These resolutions could represent actual overview as seen in source file
-    * or overviews of VRT that was created as result of resample operations.
-    */
-  lazy val resolutions: List[GridExtent[Long]] = dataset.resolutions(datasetType).map(_.toGridType[Long])
+  lazy val metadata: GDALMetadata = GDALMetadata(dataset, dstCellType.getOrElse(dataset.cellType), datasetType, domains)
 
   override def readBounds(bounds: Traversable[GridBounds[Long]], bands: Seq[Int]): Iterator[Raster[MultibandTile]] = {
     bounds

@@ -26,6 +26,7 @@ import geotrellis.raster._
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, OverviewStrategy}
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.vector._
+
 import com.azavea.gdal.GDALWarp
 import cats._
 import cats.syntax.flatMap._
@@ -46,31 +47,10 @@ case class GDALRasterSource[F[_]: Monad: UnsafeLift](
   @transient lazy val datasetF: F[GDALDataset] =
     options >>= { opt => UnsafeLift[F].apply { GDALDataset(path, opt.toWarpOptionsList.toArray) } }
 
-  lazy val bandCount: F[Int] = datasetF.map(_.bandCount)
-
-  lazy val crs: F[CRS] = datasetF.map(_.crs)
-
   // noDataValue from the previous step
   lazy val noDataValue: F[Option[Double]] = datasetF.map(_.noDataValue(GDALWarp.SOURCE))
-
   lazy val dataType: F[Int] = datasetF.map(_.dataType)
-
-  lazy val cellType: F[CellType] = dstCellType.fold(datasetF.map(_.cellType))(Monad[F].pure)
-
-  lazy val gridExtent: F[GridExtent[Long]] =
-    (datasetF, datasetType).mapN { case (dataset, datasetType) =>
-      dataset.rasterExtent(datasetType).toGridType[Long]
-    }
-
-  /** Resolutions of available overviews in GDAL Dataset
-    *
-    * These resolutions could represent actual overview as seen in source file
-    * or overviews of VRT that was created as result of resample operations.
-    */
-  lazy val resolutions: F[List[GridExtent[Long]]] =
-    (datasetF, datasetType).mapN { case (dataset, datasetType) => dataset.resolutions(datasetType).map(_.toGridType[Long]) }
-
-  lazy val metadata: F[GDALMetadata] = GDALMetadata(datasetF, this, GDALWarp.SOURCE, domains)
+  lazy val metadata: F[GDALMetadata] = GDALMetadata(datasetF, dstCellType.fold(datasetF.map(_.cellType))(Monad[F].pure), GDALWarp.SOURCE, domains)
 
   override def readBounds(bounds: Traversable[GridBounds[Long]], bands: Seq[Int]): F[Iterator[Raster[MultibandTile]]] = {
     UnsafeLift[F].apply {
