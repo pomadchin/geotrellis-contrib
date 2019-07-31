@@ -16,6 +16,7 @@
 
 package geotrellis.contrib.vlm.gdal
 
+import geotrellis.contrib.vlm.gdal.GDALDataset.DatasetType
 import geotrellis.contrib.vlm.{ConvertTargetCellType, TargetCellType}
 import geotrellis.raster._
 import geotrellis.raster.resample._
@@ -23,7 +24,7 @@ import geotrellis.raster.io.geotiff.{AutoHigherResolution, OverviewStrategy}
 import geotrellis.proj4.CRS
 import geotrellis.vector.Extent
 
-import com.azavea.gdal.GDALWarp
+import cats.Monad
 import cats.instances.option._
 import cats.syntax.apply._
 import cats.syntax.option._
@@ -249,11 +250,13 @@ case class GDALWarpOptions(
   }
 
   def isEmpty: Boolean = this == GDALWarpOptions.EMPTY
-  def datasetType: Int = if(isEmpty) GDALWarp.SOURCE else GDALWarp.WARPED
+  def datasetType: DatasetType = if(isEmpty) GDALDataset.SOURCE else GDALDataset.WARPED
 }
 
 object GDALWarpOptions {
   val EMPTY = GDALWarpOptions()
+
+  implicit def lift2Monad[F[_]: Monad](options: GDALWarpOptions): F[GDALWarpOptions] = Monad[F].pure(options)
 
   def createConvertOptions(targetCellType: TargetCellType, noDataValue: Option[Double]): Option[GDALWarpOptions] = targetCellType match {
     case ConvertTargetCellType(target) =>
