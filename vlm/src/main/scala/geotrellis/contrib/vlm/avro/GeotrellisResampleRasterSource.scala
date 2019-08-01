@@ -20,13 +20,13 @@ import geotrellis.contrib.vlm._
 import geotrellis.vector._
 import geotrellis.proj4._
 import geotrellis.raster._
-import geotrellis.raster.reproject.Reproject
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, OverviewStrategy}
 import geotrellis.store._
 
 import com.typesafe.scalalogging.LazyLogging
 
+import java.time.ZonedDateTime
 
 /** RasterSource that resamples on read from underlying GeoTrellis layer.
  *
@@ -94,12 +94,33 @@ class GeotrellisResampleRasterSource(
       }
   }
 
-  def read(bounds: GridBounds[Long], bands: Seq[Int]): Option[Raster[MultibandTile]] = {
+  def read(extent: Extent, bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] = {
+    val tileBounds = sourceLayer.metadata.mapTransform.extentToBounds(extent)
+    def msg = s"\u001b[32mread($extent)\u001b[0m = ${dataPath.toString} ${sourceLayer.id} ${sourceLayer.metadata.cellSize} @ ${sourceLayer.metadata.crs} TO $cellSize -- reading ${tileBounds.size} tiles"
+    if (tileBounds.size < 1024) // Assuming 256x256 tiles this would be a very large request
+      logger.debug(msg)
+    else
+      logger.warn(msg + " (large read)")
+
+    GeotrellisRasterSource.readIntersecting(reader, layerId, sourceLayer.metadata, extent, bands, Option(time))
+      .map { raster =>
+        val targetRasterExtent = gridExtent.createAlignedRasterExtent(extent)
+        logger.trace(s"\u001b[31mTargetRasterExtent\u001b[0m: ${targetRasterExtent} ${targetRasterExtent.dimensions}")
+        raster.resample(targetRasterExtent, resampleMethod)
+      }
+  }
+
+  def read(bounds: GridBounds[Long], bands: Seq[Int]): Option[Raster[MultibandTile]] =
     bounds
       .intersection(this.gridBounds)
       .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
       .flatMap(read(_, bands))
-  }
+
+  def read(bounds: GridBounds[Long], bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] =
+    bounds
+      .intersection(this.gridBounds)
+      .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
+      .flatMap(read(_, bands, time))
 
   def reprojection(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeotrellisReprojectRasterSource = {
     val reprojectOptions = ResampleGrid.toReprojectOptions[Long](this.gridExtent, resampleGrid, method)

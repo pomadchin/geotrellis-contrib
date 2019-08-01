@@ -24,9 +24,10 @@ import geotrellis.raster.resample._
 import geotrellis.proj4._
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, OverviewStrategy}
 import geotrellis.store._
-
 import com.typesafe.scalalogging.LazyLogging
+
 import scala.io.AnsiColor._
+import java.time.ZonedDateTime
 
 class GeotrellisReprojectRasterSource(
   val attributeStore: AttributeStore,
@@ -101,11 +102,53 @@ class GeotrellisReprojectRasterSource(
     }
   }
 
+  def read(extent: Extent, bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] = {
+    val transform = Transform(sourceLayer.metadata.crs, crs)
+    val backTransform = Transform(crs, sourceLayer.metadata.crs)
+    for {
+      subExtent <- this.extent.intersection(extent)
+      targetRasterExtent = this.gridExtent.createAlignedRasterExtent(subExtent)
+      sourceExtent = targetRasterExtent.extent.reprojectAsPolygon(backTransform, 0.001).getEnvelopeInternal
+      sourceRegion = sourceLayer.metadata.layout.createAlignedGridExtent(sourceExtent)
+      _ = {
+        lazy val tileBounds = sourceLayer.metadata.mapTransform.extentToBounds(sourceExtent)
+        lazy val pixelsRead = (tileBounds.size * sourceLayer.metadata.layout.tileCols * sourceLayer.metadata.layout.tileRows).toDouble
+        lazy val pixelsQueried = targetRasterExtent.cols.toDouble * targetRasterExtent.rows.toDouble
+        def msg = s"""
+                     |${GREEN}Read($extent)${RESET} =
+                     |\t${BOLD}FROM${RESET} ${dataPath.toString} ${sourceLayer.id}
+                     |\t${BOLD}SOURCE${RESET} $sourceExtent ${sourceLayer.metadata.cellSize} @ ${sourceLayer.metadata.crs}
+                     |\t${BOLD}TARGET${RESET} ${targetRasterExtent.extent} ${targetRasterExtent.cellSize} @ ${crs}
+                     |\t${BOLD}READ${RESET} ${pixelsRead/pixelsQueried} read/query ratio for ${tileBounds.size} tiles
+        """.stripMargin
+        if (tileBounds.size < 1024) // Assuming 256x256 tiles this would be a very large request
+          logger.debug(msg)
+        else
+          logger.warn(msg + " (large read)")
+      }
+      raster <- GeotrellisRasterSource.readIntersecting(reader, layerId, sourceLayer.metadata, sourceExtent, bands, Option(time))
+    } yield {
+      val reprojected = raster.reproject(
+        targetRasterExtent,
+        transform,
+        backTransform,
+        ResampleGrid.toReprojectOptions[Long](targetRasterExtent.toGridType[Long], targetResampleGrid, resampleMethod)
+      )
+      convertRaster(reprojected)
+    }
+  }
+
   def read(bounds: GridBounds[Long], bands: Seq[Int]): Option[Raster[MultibandTile]] =
     bounds
       .intersection(this.gridBounds)
       .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
       .flatMap(read(_, bands))
+
+  def read(bounds: GridBounds[Long], bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] =
+    bounds
+      .intersection(this.gridBounds)
+      .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
+      .flatMap(read(_, bands, time))
 
   override def readExtents(extents: Traversable[Extent], bands: Seq[Int]): Iterator[Raster[MultibandTile]] =
     extents.toIterator.flatMap(read(_, bands))

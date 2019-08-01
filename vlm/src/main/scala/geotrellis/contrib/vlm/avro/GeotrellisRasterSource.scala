@@ -17,6 +17,7 @@
 package geotrellis.contrib.vlm.avro
 
 import geotrellis.contrib.vlm._
+import geotrellis.contrib.layer.filter._
 import geotrellis.proj4._
 import geotrellis.raster.io.geotiff.{Auto, AutoHigherResolution, Base, OverviewStrategy}
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
@@ -24,6 +25,9 @@ import geotrellis.raster.{MultibandTile, Tile, _}
 import geotrellis.store._
 import geotrellis.layer._
 import geotrellis.vector._
+import geotrellis.util._
+
+import java.time.ZonedDateTime
 
 case class Layer(id: LayerId, metadata: TileLayerMetadata[SpatialKey], bandCount: Int) {
   /** GridExtent of the data pixels in the layer */
@@ -81,15 +85,23 @@ class GeotrellisRasterSource(
     )
   )
 
-  def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
+  def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] =
     GeotrellisRasterSource.read(reader, layerId, layerMetadata, extent, bands).map(convertRaster)
-  }
+
+  def read(extent: Extent, bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] =
+    GeotrellisRasterSource.read(reader, layerId, layerMetadata, extent, bands, Option(time)).map(convertRaster)
 
   def read(bounds: GridBounds[Long], bands: Seq[Int]): Option[Raster[MultibandTile]] =
     bounds
       .intersection(this.gridBounds)
       .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
       .flatMap(read(_, bands))
+
+  def read(bounds: GridBounds[Long], bands: Seq[Int], time: ZonedDateTime): Option[Raster[MultibandTile]] =
+    bounds
+      .intersection(this.gridBounds)
+      .map(gridExtent.extentFor(_).buffer(- cellSize.width / 2, - cellSize.height / 2))
+      .flatMap(read(_, bands, time))
 
   override def readExtents(extents: Traversable[Extent], bands: Seq[Int]): Iterator[Raster[MultibandTile]] =
     extents.toIterator.flatMap(read(_, bands))
@@ -133,6 +145,7 @@ class GeotrellisRasterSource(
 object GeotrellisRasterSource {
   // stable identifiers to match in a readTiles function
   private val SpatialKeyClass    = classOf[SpatialKey]
+  private val SpaceTimeKeyClass  = classOf[SpaceTimeKey]
   private val TileClass          = classOf[Tile]
   private val MultibandTileClass = classOf[MultibandTile]
 
@@ -173,36 +186,53 @@ object GeotrellisRasterSource {
       }
   }
 
-  def readTiles(reader: CollectionLayerReader[LayerId], layerId: LayerId, extent: Extent, bands: Seq[Int]): Seq[(SpatialKey, MultibandTile)] with Metadata[TileLayerMetadata[SpatialKey]] = {
+  def readTiles(reader: CollectionLayerReader[LayerId], layerId: LayerId, extent: Extent, bands: Seq[Int], time: Option[ZonedDateTime] = None): Seq[(SpatialKey, MultibandTile)] with Metadata[TileLayerMetadata[SpatialKey]] = {
     val header = reader.attributeStore.readHeader[LayerHeader](layerId)
-    (Class.forName(header.keyClass), Class.forName(header.valueClass)) match {
-      case (SpatialKeyClass, TileClass) =>
-        reader.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
-          .where(Intersects(extent))
-          .result
-          .withContext(tiles =>
-            // Convert single band tiles to multiband
-            tiles.map{ case(key, tile) => (key, MultibandTile(tile)) }
-          )
-      case (SpatialKeyClass, MultibandTileClass) =>
-        reader.query[SpatialKey, MultibandTile, TileLayerMetadata[SpatialKey]](layerId)
-          .where(Intersects(extent))
-          .result
-          .withContext(tiles =>
-            tiles.map{ case(key, tile) => (key, tile.subsetBands(bands)) }
-          )
+    time match {
+      case Some(dt) =>
+        (Class.forName(header.keyClass), Class.forName(header.valueClass)) match {
+          case (SpaceTimeKeyClass, TileClass) =>
+            reader.query[SpaceTimeKey, Tile, TileLayerMetadata[SpaceTimeKey]](layerId)
+              .where(Intersects(extent))
+              .where(Between(dt, dt))
+              .result
+              .withContext { _.mapValues(MultibandTile(_)) }
+              .toSpatial(dt)
+          case (SpaceTimeKeyClass, MultibandTileClass) =>
+            reader.query[SpaceTimeKey, MultibandTile, TileLayerMetadata[SpaceTimeKey]](layerId)
+              .where(Intersects(extent))
+              .where(Between(dt, dt))
+              .result
+              .withContext { _.mapValues { _.subsetBands(bands) } }
+              .toSpatial(dt)
+          case _ =>
+            throw new Exception(s"Unable to read single or multiband tiles from file: ${(header.keyClass, header.valueClass)}")
+        }
       case _ =>
-        throw new Exception(s"Unable to read single or multiband tiles from file: ${(header.keyClass, header.valueClass)}")
+        (Class.forName(header.keyClass), Class.forName(header.valueClass)) match {
+          case (SpatialKeyClass, TileClass) =>
+            reader.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
+              .where(Intersects(extent))
+              .result
+              .withContext { _.mapValues(MultibandTile(_)) }
+          case (SpatialKeyClass, MultibandTileClass) =>
+            reader.query[SpatialKey, MultibandTile, TileLayerMetadata[SpatialKey]](layerId)
+              .where(Intersects(extent))
+              .result
+              .withContext { _.mapValues { _.subsetBands(bands) } }
+          case _ =>
+            throw new Exception(s"Unable to read single or multiband tiles from file: ${(header.keyClass, header.valueClass)}")
+        }
     }
   }
 
-  def readIntersecting(reader: CollectionLayerReader[LayerId], layerId: LayerId, metadata: TileLayerMetadata[SpatialKey], extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
-    val tiles = readTiles(reader, layerId, extent, bands)
+  def readIntersecting(reader: CollectionLayerReader[LayerId], layerId: LayerId, metadata: TileLayerMetadata[SpatialKey], extent: Extent, bands: Seq[Int], time: Option[ZonedDateTime] = None): Option[Raster[MultibandTile]] = {
+    val tiles = readTiles(reader, layerId, extent, bands, time)
     sparseStitch(tiles, extent)
   }
 
-  def read(reader: CollectionLayerReader[LayerId], layerId: LayerId, metadata: TileLayerMetadata[SpatialKey], extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
-    val tiles = readTiles(reader, layerId, extent, bands)
+  def read(reader: CollectionLayerReader[LayerId], layerId: LayerId, metadata: TileLayerMetadata[SpatialKey], extent: Extent, bands: Seq[Int], time: Option[ZonedDateTime] = None): Option[Raster[MultibandTile]] = {
+    val tiles = readTiles(reader, layerId, extent, bands, time)
     metadata.extent.intersection(extent) flatMap { intersectionExtent =>
       sparseStitch(tiles, intersectionExtent).map(_.crop(intersectionExtent))
     }
