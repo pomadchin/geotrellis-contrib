@@ -84,8 +84,7 @@ trait MosaicRasterSource extends RasterSource {
     MosaicRasterSource(
       sources map { _.reproject(targetCRS, resampleGrid, method, strategy) },
       crs,
-      gridExtent.reproject(this.crs, targetCRS, Reproject.Options.DEFAULT.copy(method = method)),
-      name
+      gridExtent.reproject(this.crs, targetCRS, Reproject.Options.DEFAULT.copy(method = method))
     )
 
   def read(extent: Extent, bands: Seq[Int]): Option[Raster[MultibandTile]] = {
@@ -99,10 +98,10 @@ trait MosaicRasterSource extends RasterSource {
   }
 
   def resample(resampleGrid: ResampleGrid[Long], method: ResampleMethod, strategy: OverviewStrategy): RasterSource = MosaicRasterSource(
-    sources map { _.resample(resampleGrid, method, strategy) }, crs, name)
+    sources map { _.resample(resampleGrid, method, strategy) }, crs)
 
   def convert(targetCellType: TargetCellType): RasterSource =
-    MosaicRasterSource(sources map { _.convert(targetCellType) }, crs, name)
+    MosaicRasterSource(sources map { _.convert(targetCellType) }, crs)
 }
 
 object MosaicRasterSource {
@@ -134,12 +133,8 @@ object MosaicRasterSource {
       }
     }
 
-  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS, targetGridExtent: GridExtent[Long]): MosaicRasterSource =
-    apply(sourcesList, targetCRS, targetGridExtent, "")
-
-  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS, targetGridExtent: GridExtent[Long], rasterSourceName: DataName): MosaicRasterSource = {
+  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS, targetGridExtent: GridExtent[Long]): MosaicRasterSource = {
     new MosaicRasterSource {
-      val name = rasterSourceName
       val sources = sourcesList map { _.reprojectToGrid(targetCRS, gridExtent) }
       val crs = targetCRS
 
@@ -147,12 +142,8 @@ object MosaicRasterSource {
     }
   }
 
-  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS): MosaicRasterSource =
-    apply(sourcesList, targetCRS, "")
-
-  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS, rasterSourceName: DataName): MosaicRasterSource = {
+  def apply(sourcesList: NonEmptyList[RasterSource], targetCRS: CRS): MosaicRasterSource = {
     new MosaicRasterSource {
-      val name = rasterSourceName
       val sources = sourcesList map { _.reprojectToGrid(targetCRS, sourcesList.head.gridExtent) }
       val crs = targetCRS
       def gridExtent: GridExtent[Long] = {
@@ -171,9 +162,8 @@ object MosaicRasterSource {
   }
 
   @SuppressWarnings(Array("TraversableHead", "TraversableTail"))
-  def unsafeFromList(sourcesList: List[RasterSource], targetCRS: CRS = WebMercator, targetGridExtent: Option[GridExtent[Long]], rasterSourceName: DataName = ""): MosaicRasterSource =
+  def unsafeFromList(sourcesList: List[RasterSource], targetCRS: CRS = WebMercator, targetGridExtent: Option[GridExtent[Long]]): MosaicRasterSource =
     new MosaicRasterSource {
-      val name = rasterSourceName
       val sources = NonEmptyList(sourcesList.head, sourcesList.tail)
       val crs = targetCRS
       def gridExtent: GridExtent[Long] = targetGridExtent getOrElse { sourcesList.head.gridExtent}

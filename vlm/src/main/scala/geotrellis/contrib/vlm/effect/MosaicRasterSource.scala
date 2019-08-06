@@ -158,21 +158,12 @@ object MosaicRasterSource {
       }
     }
 
-
   def apply[F[_]: Monad: Par](
     sourcesList: F[NonEmptyList[RasterSourceF[F]]],
     targetCRS: F[CRS],
     targetGridExtent: F[GridExtent[Long]]
-  ): MosaicRasterSource[F] = apply(sourcesList, targetCRS, targetGridExtent, "")
-
-  def apply[F[_]: Monad: Par](
-    sourcesList: F[NonEmptyList[RasterSourceF[F]]],
-    targetCRS: F[CRS],
-    targetGridExtent: F[GridExtent[Long]],
-    rasterSourceName: DataName
   ): MosaicRasterSource[F] =
     new MosaicRasterSource[F] {
-      def name = rasterSourceName
       val sources = (targetCRS, targetGridExtent).mapN { case (targetCRS, targetGridExtent) =>
         sourcesList map { _.map(_.reprojectToGrid(targetCRS, targetGridExtent)) }
       }.flatten
@@ -181,11 +172,7 @@ object MosaicRasterSource {
     }
 
   def apply[F[_]: Monad: Par](sourcesList: F[NonEmptyList[RasterSourceF[F]]], targetCRS: F[CRS]): MosaicRasterSource[F] =
-    apply(sourcesList, targetCRS, "")
-
-  def apply[F[_]: Monad: Par](sourcesList: F[NonEmptyList[RasterSourceF[F]]], targetCRS: F[CRS], rasterSourceName: DataName): MosaicRasterSource[F] =
     new MosaicRasterSource[F] {
-      def name = rasterSourceName
       val sources = {
         (sourcesList >>= (_.head.gridExtent), targetCRS).mapN { case (gridExtent, targetCRS) =>
           sourcesList.map(_.map {
@@ -221,11 +208,9 @@ object MosaicRasterSource {
   def unsafeFromList[F[_]: Monad: Par](
     sourcesList: List[RasterSourceF[F]],
     targetCRS: CRS = WebMercator,
-    targetGridExtent: Option[GridExtent[Long]],
-    rasterSourceName: DataName = ""
+    targetGridExtent: Option[GridExtent[Long]]
   ): MosaicRasterSource[F] =
     new MosaicRasterSource[F] {
-      def name = rasterSourceName
       val sources = Monad[F].pure(NonEmptyList(sourcesList.head, sourcesList.tail))
       val crs = Monad[F].pure(targetCRS)
       def gridExtent: F[GridExtent[Long]] = targetGridExtent.fold(sourcesList.head.gridExtent)(Monad[F].pure)

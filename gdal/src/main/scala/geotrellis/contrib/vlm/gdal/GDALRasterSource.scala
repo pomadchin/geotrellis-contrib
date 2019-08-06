@@ -29,7 +29,7 @@ case class GDALRasterSource(
   dataPath: GDALDataPath,
   options: GDALWarpOptions = GDALWarpOptions.EMPTY,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-) extends RasterSource {
+) extends RasterSource with NamedRasterSource {
 
   /**
     * All the information received from the JNI side should be cached on the JVM side,

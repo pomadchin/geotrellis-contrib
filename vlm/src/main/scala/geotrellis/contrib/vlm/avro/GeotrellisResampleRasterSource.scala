@@ -51,7 +51,7 @@ class GeotrellisResampleRasterSource(
   val gridExtent: GridExtent[Long],
   val resampleMethod: ResampleMethod = NearestNeighbor,
   val targetCellType: Option[TargetCellType] = None
-) extends RasterSource with LazyLogging { self =>
+) extends RasterSource with NamedRasterSource with LazyLogging {
   def name: GeoTrellisDataPath = dataPath
 
   lazy val reader = CollectionLayerReader(attributeStore, dataPath.value)

@@ -38,7 +38,7 @@ case class GeoTiffResampleRasterSource[F[_]: Monad: UnsafeLift](
   method: ResampleMethod = NearestNeighbor,
   strategy: OverviewStrategy = AutoHigherResolution,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-) extends RasterSourceF[F] {
+) extends RasterSourceF[F] with NamedRasterSourceF[F] {
   def name: GeoTiffDataPath = dataPath
   def resampleMethod: Option[ResampleMethod] = Some(method)
 

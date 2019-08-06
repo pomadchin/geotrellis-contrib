@@ -41,7 +41,7 @@ class GeotrellisRasterSource(
   val dataPath: GeoTrellisDataPath,
   val sourceLayers: Stream[Layer],
   val targetCellType: Option[TargetCellType]
-) extends RasterSource {
+) extends RasterSource with NamedRasterSource {
   def name: GeoTrellisDataPath = dataPath
   val layerId: LayerId = dataPath.layerId
 

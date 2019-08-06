@@ -42,7 +42,7 @@ case class GeoTiffReprojectRasterSource[F[_]: Monad: UnsafeLift](
   strategy: OverviewStrategy = AutoHigherResolution,
   errorThreshold: Double = 0.125,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-) extends RasterSourceF[F] {
+) extends RasterSourceF[F] with NamedRasterSourceF[F] {
   def name: GeoTiffDataPath = dataPath
   // memoize tiff, not useful only in a local fs case
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.value), streaming = true)

@@ -40,7 +40,7 @@ class GeotrellisReprojectRasterSource(
   val strategy: OverviewStrategy = AutoHigherResolution,
   val errorThreshold: Double = 0.125,
   val targetCellType: Option[TargetCellType]
-) extends RasterSource with LazyLogging { self =>
+) extends RasterSource with NamedRasterSource with LazyLogging {
   def name: GeoTrellisDataPath = dataPath
 
   lazy val reader = CollectionLayerReader(attributeStore, dataPath.value)

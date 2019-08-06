@@ -29,7 +29,7 @@ case class GeoTiffRasterSource(
   dataPath: GeoTiffDataPath,
   private[vlm] val targetCellType: Option[TargetCellType] = None,
   private val baseTiff: Option[MultibandGeoTiff] = None
-) extends RasterSource {
+) extends RasterSource with NamedRasterSource {
   def name: GeoTiffDataPath = dataPath
 
   @transient lazy val tiff: MultibandGeoTiff =

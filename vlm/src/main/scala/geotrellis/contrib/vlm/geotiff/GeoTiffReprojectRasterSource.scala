@@ -35,7 +35,7 @@ case class GeoTiffReprojectRasterSource(
   errorThreshold: Double = 0.125,
   private[vlm] val targetCellType: Option[TargetCellType] = None,
   private val baseTiff: Option[MultibandGeoTiff] = None
-) extends RasterSource { self =>
+) extends RasterSource with NamedRasterSource {
   def name: GeoTiffDataPath = dataPath
 
   @transient lazy val tiff: MultibandGeoTiff =

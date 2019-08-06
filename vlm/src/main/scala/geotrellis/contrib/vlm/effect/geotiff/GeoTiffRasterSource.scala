@@ -37,7 +37,7 @@ import cats.instances.list._
 case class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
   dataPath: GeoTiffDataPath,
   private[vlm] val targetCellType: Option[TargetCellType] = None
-) extends RasterSourceF[F] {
+) extends RasterSourceF[F] with NamedRasterSourceF[F] {
   def name: GeoTiffDataPath = dataPath
   // memoize tiff, not useful only in a local fs case
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.value), streaming = true)
