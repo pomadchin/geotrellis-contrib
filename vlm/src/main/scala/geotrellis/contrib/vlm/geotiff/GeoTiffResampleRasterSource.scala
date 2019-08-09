@@ -24,14 +24,15 @@ import geotrellis.raster.reproject.{Reproject, ReprojectRasterExtent}
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiff, GeoTiffMultibandTile, MultibandGeoTiff, OverviewStrategy, Tags}
 
-case class GeoTiffResampleRasterSource(
-  dataPath: GeoTiffPath,
-  resampleGrid: ResampleGrid[Long],
-  method: ResampleMethod = NearestNeighbor,
-  strategy: OverviewStrategy = AutoHigherResolution,
+class GeoTiffResampleRasterSource(
+  val dataPath: GeoTiffPath,
+  val resampleGrid: ResampleGrid[Long],
+  val method: ResampleMethod = NearestNeighbor,
+  val strategy: OverviewStrategy = AutoHigherResolution,
   private[vlm] val targetCellType: Option[TargetCellType] = None,
-  protected val baseTiff: Option[MultibandGeoTiff] = None
+  originalTiff: => Option[MultibandGeoTiff] = None
 ) extends BaseGeoTiffRasterSource {
+  def baseTiff: Option[MultibandGeoTiff] = originalTiff
   def resampleMethod: Option[ResampleMethod] = Some(method)
   def crs: CRS = tiff.crs
 
@@ -114,4 +115,15 @@ case class GeoTiffResampleRasterSource(
       ).resample(targetRasterExtent.cols, targetRasterExtent.rows, method)
     }
   }
+}
+
+object GeoTiffResampleRasterSource {
+  def apply(
+    dataPath: GeoTiffPath,
+    resampleGrid: ResampleGrid[Long],
+    method: ResampleMethod = NearestNeighbor,
+    strategy: OverviewStrategy = AutoHigherResolution,
+    targetCellType: Option[TargetCellType] = None,
+    originalTiff: => Option[MultibandGeoTiff] = None
+  ): GeoTiffResampleRasterSource = new GeoTiffResampleRasterSource(dataPath, resampleGrid,method, strategy, targetCellType, originalTiff)
 }

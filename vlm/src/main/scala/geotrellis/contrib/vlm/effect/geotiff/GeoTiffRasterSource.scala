@@ -20,7 +20,7 @@ import geotrellis.contrib.vlm._
 import geotrellis.contrib.vlm.geotiff.GeoTiffPath
 import geotrellis.proj4._
 import geotrellis.raster._
-import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiffMultibandTile, OverviewStrategy}
+import geotrellis.raster.io.geotiff.{MultibandGeoTiff, AutoHigherResolution, GeoTiffMultibandTile, OverviewStrategy}
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.vector._
 
@@ -31,10 +31,12 @@ import cats.syntax.apply._
 import cats.syntax.functor._
 import cats.instances.list._
 
-case class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
-  dataPath: GeoTiffPath,
-  private[vlm] val targetCellType: Option[TargetCellType] = None
+class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
+  val dataPath: GeoTiffPath,
+  private[vlm] val targetCellType: Option[TargetCellType] = None,
+  originalTiff: => Option[F[MultibandGeoTiff]] = None
 ) extends BaseGeoTiffRasterSource[F] {
+  def baseTiff: Option[F[MultibandGeoTiff]] = originalTiff
   lazy val gridExtent: F[GridExtent[Long]] = tiffF.map(_.rasterExtent.toGridType[Long])
   lazy val resolutions: F[List[GridExtent[Long]]] = tiffF.map { tiff =>
     tiff.rasterExtent.toGridType[Long] :: tiff.overviews.map(_.rasterExtent.toGridType[Long])
@@ -43,13 +45,13 @@ case class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
   def crs: F[CRS] = tiffF.map(_.crs)
 
   def reprojection(targetCRS: CRS, resampleGrid: ResampleGrid[Long] = IdentityResampleGrid, method: ResampleMethod = NearestNeighbor, strategy: OverviewStrategy = AutoHigherResolution): GeoTiffReprojectRasterSource[F] =
-    GeoTiffReprojectRasterSource(dataPath, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType)
+    GeoTiffReprojectRasterSource(dataPath, targetCRS, resampleGrid, method, strategy, targetCellType = targetCellType, originalTiff = Some(tiffF))
 
   def resample(resampleGrid: ResampleGrid[Long], method: ResampleMethod, strategy: OverviewStrategy): GeoTiffResampleRasterSource[F] =
-    GeoTiffResampleRasterSource(dataPath, resampleGrid, method, strategy, targetCellType)
+    GeoTiffResampleRasterSource(dataPath, resampleGrid, method, strategy, targetCellType, Some(tiffF))
 
   def convert(targetCellType: TargetCellType): GeoTiffRasterSource[F] =
-    GeoTiffRasterSource(dataPath, Some(targetCellType))
+    GeoTiffRasterSource(dataPath, Some(targetCellType), Some(tiffF))
 
   def read(extent: Extent, bands: Seq[Int]): F[Raster[MultibandTile]] =
     (tiffF, gridExtent).mapN { (tiff, gridExtent) =>
@@ -88,5 +90,10 @@ case class GeoTiffRasterSource[F[_]: Monad: UnsafeLift](
         }
       }
     }.flatten
+}
+
+object GeoTiffRasterSource {
+  def apply[F[_]: Monad: UnsafeLift](dataPath: GeoTiffPath, targetCellType: Option[TargetCellType] = None, originalTiff: => Option[F[MultibandGeoTiff]] = None): GeoTiffRasterSource[F] =
+    new GeoTiffRasterSource(dataPath, targetCellType, originalTiff)
 }
 

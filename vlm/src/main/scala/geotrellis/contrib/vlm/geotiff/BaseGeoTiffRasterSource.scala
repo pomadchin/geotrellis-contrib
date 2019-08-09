@@ -10,10 +10,8 @@ trait BaseGeoTiffRasterSource extends RasterSource {
   val dataPath: GeoTiffPath
   def name: GeoTiffPath = dataPath
 
-  protected val baseTiff: Option[MultibandGeoTiff]
-
-  @transient lazy val tiff: MultibandGeoTiff =
-    baseTiff.getOrElse(GeoTiffReader.readMultiband(RangeReader(dataPath.value), streaming = true))
+  def baseTiff: Option[MultibandGeoTiff]
+  @transient lazy val tiff: MultibandGeoTiff = baseTiff.getOrElse(GeoTiffReader.readMultiband(RangeReader(dataPath.value), streaming = true))
 
   def bandCount: Int = tiff.bandCount
   def cellType: CellType = dstCellType.getOrElse(tiff.cellType)

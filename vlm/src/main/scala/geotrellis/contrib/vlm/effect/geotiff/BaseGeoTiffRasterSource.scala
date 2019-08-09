@@ -15,9 +15,10 @@ abstract class BaseGeoTiffRasterSource[F[_]: Monad: UnsafeLift] extends RasterSo
   val dataPath: GeoTiffPath
   def name: GeoTiffPath = dataPath
 
+  def baseTiff: Option[F[MultibandGeoTiff]]
   // memoize tiff, not useful only in a local fs case
   @transient lazy val tiff: MultibandGeoTiff = GeoTiffReader.readMultiband(RangeReader(dataPath.value), streaming = true)
-  @transient lazy val tiffF: F[MultibandGeoTiff] = UnsafeLift[F].apply(tiff)
+  @transient lazy val tiffF: F[MultibandGeoTiff] = baseTiff.getOrElse(UnsafeLift[F].apply(tiff))
 
   def bandCount: F[Int] = tiffF.map(_.bandCount)
   def cellType: F[CellType] = dstCellType.fold(tiffF.map(_.cellType))(Monad[F].pure)

@@ -24,16 +24,18 @@ import geotrellis.raster.resample._
 import geotrellis.proj4._
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiff, GeoTiffMultibandTile, MultibandGeoTiff, OverviewStrategy}
 
-case class GeoTiffReprojectRasterSource(
-  dataPath: GeoTiffPath,
-  crs: CRS,
-  targetResampleGrid: ResampleGrid[Long] = IdentityResampleGrid,
-  resampleMethod: ResampleMethod = NearestNeighbor,
-  strategy: OverviewStrategy = AutoHigherResolution,
-  errorThreshold: Double = 0.125,
+class GeoTiffReprojectRasterSource(
+  val dataPath: GeoTiffPath,
+  val crs: CRS,
+  val targetResampleGrid: ResampleGrid[Long] = IdentityResampleGrid,
+  val resampleMethod: ResampleMethod = NearestNeighbor,
+  val strategy: OverviewStrategy = AutoHigherResolution,
+  val errorThreshold: Double = 0.125,
   private[vlm] val targetCellType: Option[TargetCellType] = None,
-  protected val baseTiff: Option[MultibandGeoTiff] = None
+  originalTiff: => Option[MultibandGeoTiff] = None
 ) extends BaseGeoTiffRasterSource {
+  def baseTiff: Option[MultibandGeoTiff] = originalTiff
+
   protected lazy val baseCRS: CRS = tiff.crs
   protected lazy val baseGridExtent: GridExtent[Long] = tiff.rasterExtent.toGridType[Long]
 
@@ -131,4 +133,17 @@ case class GeoTiffReprojectRasterSource(
 
   def convert(targetCellType: TargetCellType): RasterSource =
     GeoTiffReprojectRasterSource(dataPath, crs, targetResampleGrid, resampleMethod, strategy, targetCellType = Some(targetCellType))
+}
+
+object GeoTiffReprojectRasterSource {
+  def apply(
+    dataPath: GeoTiffPath, crs: CRS,
+    targetResampleGrid: ResampleGrid[Long] = IdentityResampleGrid,
+    resampleMethod: ResampleMethod = NearestNeighbor,
+    strategy: OverviewStrategy = AutoHigherResolution,
+    errorThreshold: Double = 0.125,
+    targetCellType: Option[TargetCellType] = None,
+    baseTiff: => Option[MultibandGeoTiff] = None
+  ): GeoTiffReprojectRasterSource =
+    new GeoTiffReprojectRasterSource(dataPath, crs, targetResampleGrid, resampleMethod, strategy, errorThreshold, targetCellType, baseTiff)
 }

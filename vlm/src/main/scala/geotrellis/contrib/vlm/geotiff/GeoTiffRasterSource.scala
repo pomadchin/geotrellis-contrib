@@ -23,11 +23,13 @@ import geotrellis.raster._
 import geotrellis.raster.resample.{NearestNeighbor, ResampleMethod}
 import geotrellis.raster.io.geotiff.{AutoHigherResolution, GeoTiffMultibandTile, MultibandGeoTiff, OverviewStrategy, Tags}
 
-case class GeoTiffRasterSource(
-  dataPath: GeoTiffPath,
+class GeoTiffRasterSource(
+  val dataPath: GeoTiffPath,
   private[vlm] val targetCellType: Option[TargetCellType] = None,
-  protected val baseTiff: Option[MultibandGeoTiff] = None
+  originalTiff: => Option[MultibandGeoTiff] = None
 ) extends BaseGeoTiffRasterSource {
+  def baseTiff: Option[MultibandGeoTiff] = originalTiff
+
   lazy val gridExtent: GridExtent[Long] = tiff.rasterExtent.toGridType[Long]
   lazy val resolutions: List[GridExtent[Long]] = gridExtent :: tiff.overviews.map(_.rasterExtent.toGridType[Long])
 
@@ -77,4 +79,9 @@ case class GeoTiffRasterSource(
       convertRaster(Raster(tile, gridExtent.extentFor(gb.toGridType[Long], clamp = true)))
     }
   }
+}
+
+object GeoTiffRasterSource {
+  def apply(dataPath: GeoTiffPath, targetCellType: Option[TargetCellType] = None, baseTiff: => Option[MultibandGeoTiff] = None): GeoTiffRasterSource =
+    new GeoTiffRasterSource(dataPath, targetCellType, baseTiff)
 }
